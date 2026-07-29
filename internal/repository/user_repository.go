@@ -7,11 +7,13 @@ import (
 
 	"example.com/internal/db/sqlc"
 	"example.com/internal/models"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type UserRepository interface {
+	WithTx(tx pgx.Tx) UserRepository
 	Create(ctx context.Context, email string, full_name string, password string) (*models.Users, error)
 	GetUsers(ctx context.Context) ([]models.Users, error)
 	GetUserByEmail(ctx context.Context, email string) (*models.Users, error)
@@ -29,6 +31,13 @@ func NewUserRepository(pool *pgxpool.Pool) UserRepository {
 	return &userRepository{
 		Queries: sqlc.New(pool),
 		pool:    pool,
+	}
+}
+
+func (u *userRepository) WithTx(tx pgx.Tx) UserRepository {
+	return &userRepository{
+		Queries: u.Queries.WithTx(tx),
+		pool:    u.pool,
 	}
 }
 

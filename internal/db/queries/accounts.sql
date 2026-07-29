@@ -29,6 +29,7 @@ SELECT
     *
 FROM
     accounts
+    JOIN users ON accounts.user_id = users.id
 WHERE
     account_number = $1;
 

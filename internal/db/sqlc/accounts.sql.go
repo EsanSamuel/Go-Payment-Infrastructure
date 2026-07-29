@@ -120,16 +120,37 @@ func (q *Queries) GetAccount(ctx context.Context, id pgtype.UUID) (Account, erro
 
 const getAccountByAccountNumber = `-- name: GetAccountByAccountNumber :one
 SELECT
-    id, user_id, account_number, currency, balance, status, created_at, updated_at
+    accounts.id, user_id, account_number, currency, balance, status, accounts.created_at, accounts.updated_at, users.id, email, password_hash, full_name, is_verified, refresh_token, verification_token, users.created_at, users.updated_at
 FROM
     accounts
+    JOIN users ON accounts.user_id = users.id
 WHERE
     account_number = $1
 `
 
-func (q *Queries) GetAccountByAccountNumber(ctx context.Context, accountNumber string) (Account, error) {
+type GetAccountByAccountNumberRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	AccountNumber     string             `json:"account_number"`
+	Currency          string             `json:"currency"`
+	Balance           int64              `json:"balance"`
+	Status            AccountStatus      `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	ID_2              pgtype.UUID        `json:"id_2"`
+	Email             string             `json:"email"`
+	PasswordHash      string             `json:"password_hash"`
+	FullName          string             `json:"full_name"`
+	IsVerified        bool               `json:"is_verified"`
+	RefreshToken      pgtype.Text        `json:"refresh_token"`
+	VerificationToken pgtype.Text        `json:"verification_token"`
+	CreatedAt_2       pgtype.Timestamptz `json:"created_at_2"`
+	UpdatedAt_2       pgtype.Timestamptz `json:"updated_at_2"`
+}
+
+func (q *Queries) GetAccountByAccountNumber(ctx context.Context, accountNumber string) (GetAccountByAccountNumberRow, error) {
 	row := q.db.QueryRow(ctx, getAccountByAccountNumber, accountNumber)
-	var i Account
+	var i GetAccountByAccountNumberRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -139,6 +160,15 @@ func (q *Queries) GetAccountByAccountNumber(ctx context.Context, accountNumber s
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ID_2,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FullName,
+		&i.IsVerified,
+		&i.RefreshToken,
+		&i.VerificationToken,
+		&i.CreatedAt_2,
+		&i.UpdatedAt_2,
 	)
 	return i, err
 }

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 
 	"example.com/internal/models"
@@ -11,6 +10,7 @@ import (
 	"example.com/internal/pkg/token"
 	"example.com/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -21,67 +21,112 @@ type AuthService interface {
 }
 
 type authService struct {
-	userRepo repository.UserRepository
-	jwt      jwt.Manager
+	pool        *pgxpool.Pool
+	userRepo    repository.UserRepository
+	accountRepo repository.AccountRepository
+	jwt         jwt.Manager
 }
 
-func NewAuthService(userRepo repository.UserRepository, jwt jwt.Manager) *authService {
+func NewAuthService(userRepo repository.UserRepository, jwt jwt.Manager, pool *pgxpool.Pool, accountRepo repository.AccountRepository) *authService {
 	return &authService{
-		userRepo: userRepo,
-		jwt:      jwt,
+		userRepo:    userRepo,
+		accountRepo: accountRepo,
+		jwt:         jwt,
+		pool:        pool,
 	}
 }
 
-func (u *authService) RegisterUser(ctx context.Context, email string, full_name string, password string) (*models.AuthResponse, error) {
-	emailExists, err := u.userRepo.EmailExists(ctx, email)
+func (s *authService) RegisterUser(
+	ctx context.Context,
+	email, fullName, password string,
+) (*models.AuthResponse, error) {
+
+	exists, err := s.userRepo.EmailExists(ctx, email)
 	if err != nil {
 		return nil, err
 	}
 
-	if emailExists {
-		log.Println("Email already exists!")
-		return nil, err
+	if exists {
+		return nil, errors.New("email already exists")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		fmt.Println("Error hashing password!")
-	}
-	user, err := u.userRepo.Create(ctx, email, full_name, string(hashedPassword))
 	if err != nil {
 		return nil, err
 	}
 
 	verificationToken, err := token.GenerateVerificationToken()
 	if err != nil {
-		log.Println("Error generating token", err)
+		return nil, err
 	}
 
-	err = u.userRepo.InsertVerificationToken(ctx, pgtype.Text{String: verificationToken, Valid: true}, user.ID)
+	refreshToken := s.jwt.GenerateRefreshToken()
+
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		log.Println("Error inserting verification token to db", err)
+		return nil, err
 	}
+	defer tx.Rollback(ctx)
 
-	accessToken, err := u.jwt.GetAccessToken(user.FullName, user.Email, user.ID)
+	userRepo := s.userRepo.WithTx(tx)
+	accountRepo := s.accountRepo.WithTx(tx)
+
+	user, err := userRepo.Create(ctx, email, fullName, string(hashedPassword))
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken := u.jwt.GenerateRefreshToken()
-
-	err = u.userRepo.InsertRefreshToken(ctx, pgtype.Text{String: refreshToken, Valid: true}, user.ID)
+	accountNumber, err := token.GenerateAccountNumber()
 	if err != nil {
-		log.Println("Error inserting refresh token to db", err)
+		return nil, err
+	}
+
+	_, err = accountRepo.CreateAccount(ctx, accountNumber, "NGN", user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = userRepo.InsertVerificationToken(
+		ctx,
+		pgtype.Text{
+			String: verificationToken,
+			Valid:  true,
+		},
+		user.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	err = userRepo.InsertRefreshToken(
+		ctx,
+		pgtype.Text{
+			String: refreshToken,
+			Valid:  true,
+		},
+		user.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	accessToken, err := s.jwt.GetAccessToken(
+		user.FullName,
+		user.Email,
+		user.ID,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	return &models.AuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		User: &models.Users{
-			ID:       user.ID,
-			Email:    user.Email,
-			FullName: user.FullName,
-		},
+		User:         user,
 	}, nil
 }
 

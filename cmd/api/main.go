@@ -33,7 +33,8 @@ func main() {
 	jwt := jwt.NewManager(jwtConfig.Secret, jwtConfig.AccessExpiry, jwtConfig.RefreshExpiry)
 
 	userRepo := repository.NewUserRepository(conn)
-	authService := service.NewAuthService(userRepo)
+	accountRepo := repository.NewAccountRepository(conn)
+	authService := service.NewAuthService(userRepo, *jwt, conn, accountRepo)
 	userController := controller.NewUserController(authService)
 
 	fmt.Println(conn)

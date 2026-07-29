@@ -22,7 +22,7 @@ type Querier interface {
 	DeleteUser(ctx context.Context, id pgtype.UUID) error
 	EmailExists(ctx context.Context, email string) (bool, error)
 	GetAccount(ctx context.Context, id pgtype.UUID) (Account, error)
-	GetAccountByAccountNumber(ctx context.Context, accountNumber string) (Account, error)
+	GetAccountByAccountNumber(ctx context.Context, accountNumber string) (GetAccountByAccountNumberRow, error)
 	GetAccountForUpdate(ctx context.Context, id pgtype.UUID) (Account, error)
 	GetIncomingTransfers(ctx context.Context, arg GetIncomingTransfersParams) ([]Transfer, error)
 	GetOutgoingTransfers(ctx context.Context, arg GetOutgoingTransfersParams) ([]Transfer, error)
