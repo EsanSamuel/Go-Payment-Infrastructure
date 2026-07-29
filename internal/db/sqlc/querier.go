@@ -6,25 +6,32 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
-	CreateLink(ctx context.Context, arg CreateLinkParams) (Link, error)
-	CreateTag(ctx context.Context, name string) (Tag, error)
-	CreateUser(ctx context.Context, email string) (User, error)
-	DeleteUser(ctx context.Context, id int64) error
-	// db/queries/links.sql
-	GetLink(ctx context.Context, id int64) (Link, error)
-	GetLinks(ctx context.Context) ([]Link, error)
-	GetLinksWithUserDetails(ctx context.Context) ([]GetLinksWithUserDetailsRow, error)
-	GetMostVisitedLinks(ctx context.Context) ([]GetMostVisitedLinksRow, error)
-	// db/migrations/tags.sql
-	GetTag(ctx context.Context, id int64) (Tag, error)
-	GetTags(ctx context.Context) ([]Tag, error)
+	ActivateAccount(ctx context.Context, id pgtype.UUID) error
+	AddBalance(ctx context.Context, arg AddBalanceParams) error
+	// db/queries/transfers.sql
+	CreateTransfer(ctx context.Context, arg CreateTransferParams) (Transfer, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// db/queries/accounts.sql
+	CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (Account, error)
+	DeleteUser(ctx context.Context, id pgtype.UUID) error
+	GetAccount(ctx context.Context, id pgtype.UUID) (Account, error)
+	GetAccountByAccountNumber(ctx context.Context, accountNumber string) (Account, error)
+	GetAccountForUpdate(ctx context.Context, id pgtype.UUID) (Account, error)
+	GetIncomingTransfers(ctx context.Context, arg GetIncomingTransfersParams) ([]Transfer, error)
+	GetOutgoingTransfers(ctx context.Context, arg GetOutgoingTransfersParams) ([]Transfer, error)
+	GetTransferById(ctx context.Context, id pgtype.UUID) (Transfer, error)
 	// db/queries/users.sql
-	GetUser(ctx context.Context, id int64) (User, error)
-	ListLinksWithTags(ctx context.Context, userID int64) ([]ListLinksWithTagsRow, error)
+	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
+	GetUserAccount(ctx context.Context, userID pgtype.UUID) (GetUserAccountRow, error)
 	ListUsers(ctx context.Context) ([]User, error)
+	SubtractBalance(ctx context.Context, arg SubtractBalanceParams) error
+	UpdateTransferStatus(ctx context.Context, arg UpdateTransferStatusParams) error
+	VerifyUser(ctx context.Context, id pgtype.UUID) error
 }
 
 var _ Querier = (*Queries)(nil)

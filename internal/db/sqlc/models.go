@@ -5,35 +5,92 @@
 package sqlc
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type Link struct {
-	ID        int64              `json:"id"`
-	UserID    int64              `json:"user_id"`
-	Url       string             `json:"url"`
-	Title     string             `json:"title"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+type AccountStatus string
+
+const (
+	AccountStatusACTIVE AccountStatus = "ACTIVE"
+	AccountStatusFROZEN AccountStatus = "FROZEN"
+	AccountStatusCLOSED AccountStatus = "CLOSED"
+)
+
+func (e *AccountStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AccountStatus(s)
+	case string:
+		*e = AccountStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AccountStatus: %T", src)
+	}
+	return nil
 }
 
-type LinkTag struct {
-	LinkID int64 `json:"link_id"`
-	TagID  int64 `json:"tag_id"`
+type NullAccountStatus struct {
+	AccountStatus AccountStatus `json:"account_status"`
+	Valid         bool          `json:"valid"` // Valid is true if AccountStatus is not NULL
 }
 
-type LinkVisit struct {
-	ID        int64              `json:"id"`
-	LinkID    int64              `json:"link_id"`
-	VisitedAt pgtype.Timestamptz `json:"visited_at"`
+// Scan implements the Scanner interface.
+func (ns *NullAccountStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.AccountStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AccountStatus.Scan(value)
 }
 
-type Tag struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+// Value implements the driver Valuer interface.
+func (ns NullAccountStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AccountStatus), nil
+}
+
+type Account struct {
+	ID            pgtype.UUID        `json:"id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	AccountNumber string             `json:"account_number"`
+	Currency      string             `json:"currency"`
+	Balance       int64              `json:"balance"`
+	Status        AccountStatus      `json:"status"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Entry struct {
+	ID         pgtype.UUID        `json:"id"`
+	AccountID  pgtype.UUID        `json:"account_id"`
+	TransferID pgtype.UUID        `json:"transfer_id"`
+	Amount     int64              `json:"amount"`
+	EntryType  string             `json:"entry_type"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type Transfer struct {
+	ID            pgtype.UUID        `json:"id"`
+	FromAccountID pgtype.UUID        `json:"from_account_id"`
+	ToAccountID   pgtype.UUID        `json:"to_account_id"`
+	Amount        int64              `json:"amount"`
+	Status        string             `json:"status"`
+	Reference     pgtype.UUID        `json:"reference"`
+	Description   pgtype.Text        `json:"description"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
 type User struct {
-	ID        int64              `json:"id"`
-	Email     string             `json:"email"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID           pgtype.UUID        `json:"id"`
+	Email        string             `json:"email"`
+	PasswordHash string             `json:"password_hash"`
+	FullName     string             `json:"full_name"`
+	IsVerified   bool               `json:"is_verified"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }

@@ -1,7 +1,11 @@
 -- db/migrations/000001_create_users.up.sql
 CREATE TABLE
   users (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     email TEXT NOT NULL UNIQUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now ()
+    password_hash TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now ()
   );
