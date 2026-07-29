@@ -3,15 +3,21 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"example.com/internal/db/sqlc"
 	"example.com/internal/models"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type UserRepository interface {
 	Create(ctx context.Context, email string, full_name string, password string) (*models.Users, error)
 	GetUsers(ctx context.Context) ([]models.Users, error)
+	GetUserByEmail(ctx context.Context, email string) (*models.Users, error)
+	EmailExists(ctx context.Context, email string) (bool, error)
+	InsertVerificationToken(ctx context.Context, token pgtype.Text, user_id pgtype.UUID) error
+	InsertRefreshToken(ctx context.Context, token pgtype.Text, user_id pgtype.UUID) error
 }
 
 type userRepository struct {
@@ -35,7 +41,11 @@ func (u *userRepository) Create(ctx context.Context, email string, full_name str
 
 	qtx := u.Queries.WithTx(tx)
 
-	user, err := qtx.CreateUser(ctx, email)
+	user, err := qtx.CreateUser(ctx, sqlc.CreateUserParams{
+		FullName:     full_name,
+		Email:        email,
+		PasswordHash: password,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -45,7 +55,7 @@ func (u *userRepository) Create(ctx context.Context, email string, full_name str
 	}
 
 	return &models.Users{
-		ID:    int(user.ID),
+		ID:    user.ID,
 		Email: user.Email,
 	}, nil
 }
@@ -72,7 +82,7 @@ func (u *userRepository) GetUsers(ctx context.Context) ([]models.Users, error) {
 
 	for i, user := range users {
 		result[i] = models.Users{
-			ID:    int(user.ID),
+			ID:    user.ID,
 			Email: user.Email,
 		}
 	}
@@ -80,56 +90,76 @@ func (u *userRepository) GetUsers(ctx context.Context) ([]models.Users, error) {
 	return result, nil
 }
 
-func (u *userRepository) CreateLink(ctx context.Context, user_id int, title, url string) (*models.Links, error) {
-	tx, err := u.pool.Begin(ctx)
+func (u *userRepository) GetUserByEmail(ctx context.Context, email string) (*models.Users, error) {
+	user, err := u.Queries.GetUserByEmail(ctx, email)
 	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-
-	qtx := u.Queries.WithTx(tx)
-
-	link, err := qtx.CreateLink(ctx, sqlc.CreateLinkParams{
-		Title:  title,
-		Url:    url,
-		UserID: int64(user_id),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create link: %w", err)
+		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-
-	return &models.Links{
-		ID:      int(link.ID),
-		Title:   link.Title,
-		Url:     link.Url,
-		User_ID: int(link.UserID),
+	return &models.Users{
+		Email:        user.Email,
+		PasswordHash: user.PasswordHash,
+		FullName:     user.FullName,
 	}, nil
 }
 
-func (u *userRepository) CreateTags(ctx context.Context, name string) (*models.Tags, error) {
+func (u *userRepository) EmailExists(ctx context.Context, email string) (bool, error) {
+	exists, err := u.Queries.EmailExists(ctx, email)
+	if err != nil {
+		return false, fmt.Errorf("failed to check email existence: %w", err)
+	}
+
+	return exists, nil
+}
+
+func (u *userRepository) InsertVerificationToken(ctx context.Context, token pgtype.Text, user_id pgtype.UUID) error {
 	tx, err := u.pool.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer tx.Rollback(ctx)
 
 	qtx := u.Queries.WithTx(tx)
 
-	tag, err := qtx.CreateTag(ctx, name)
+	user, err := qtx.InsertVerificationToken(ctx, sqlc.InsertVerificationTokenParams{
+		VerificationToken: token,
+		ID:                user_id,
+	})
+	log.Println("verification token inserted", user.VerificationToken)
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to create tag: %w", err)
+		return fmt.Errorf("failed to insert token to db: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return err
 	}
 
-	return &models.Tags{
-		ID:   int(tag.ID),
-		Name: tag.Name,
-	}, nil
+	return nil
+}
+
+func (u *userRepository) InsertRefreshToken(ctx context.Context, token pgtype.Text, user_id pgtype.UUID) error {
+	tx, err := u.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := u.Queries.WithTx(tx)
+
+	user, err := qtx.InsertRefreshToken(ctx, sqlc.InsertRefreshTokenParams{
+		RefreshToken: token,
+		ID:           user_id,
+	})
+	log.Println("verification token inserted", user.VerificationToken)
+
+	if err != nil {
+		return fmt.Errorf("failed to insert token to db: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }

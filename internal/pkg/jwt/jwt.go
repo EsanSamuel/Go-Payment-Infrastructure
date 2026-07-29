@@ -8,6 +8,7 @@ import (
 	"example.com/internal/models"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Manager struct {
@@ -24,11 +25,11 @@ func NewManager(secret string, accessTokenExpiry time.Duration, refreshTokenExpi
 	}
 }
 
-func (m *Manager) GetAccessToken(full_name, user_id, email string) (string, error) {
+func (m *Manager) GetAccessToken(full_name, email string, user_id pgtype.UUID) (string, error) {
 	claims := &models.JWTClaims{
 		Full_name: full_name,
 		Email:     email,
-		UserID:    user_id,
+		UserID:    user_id.String(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "FinTech",
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

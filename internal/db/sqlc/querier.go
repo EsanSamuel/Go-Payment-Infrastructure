@@ -13,12 +13,14 @@ import (
 type Querier interface {
 	ActivateAccount(ctx context.Context, id pgtype.UUID) error
 	AddBalance(ctx context.Context, arg AddBalanceParams) error
+	CheckIfAccountNumberExists(ctx context.Context, accountNumber string) (bool, error)
 	// db/queries/transfers.sql
 	CreateTransfer(ctx context.Context, arg CreateTransferParams) (Transfer, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// db/queries/accounts.sql
 	CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (Account, error)
 	DeleteUser(ctx context.Context, id pgtype.UUID) error
+	EmailExists(ctx context.Context, email string) (bool, error)
 	GetAccount(ctx context.Context, id pgtype.UUID) (Account, error)
 	GetAccountByAccountNumber(ctx context.Context, accountNumber string) (Account, error)
 	GetAccountForUpdate(ctx context.Context, id pgtype.UUID) (Account, error)
@@ -28,6 +30,9 @@ type Querier interface {
 	// db/queries/users.sql
 	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
 	GetUserAccount(ctx context.Context, userID pgtype.UUID) (GetUserAccountRow, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
+	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) (User, error)
+	InsertVerificationToken(ctx context.Context, arg InsertVerificationTokenParams) (User, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	SubtractBalance(ctx context.Context, arg SubtractBalanceParams) error
 	UpdateTransferStatus(ctx context.Context, arg UpdateTransferStatusParams) error

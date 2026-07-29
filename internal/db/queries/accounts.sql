@@ -32,6 +32,17 @@ FROM
 WHERE
     account_number = $1;
 
+-- name: CheckIfAccountNumberExists :one 
+SELECT
+    EXISTS (
+        SELECT
+            1
+        FROM
+            accounts
+        WHERE
+            account_number = $1
+    );
+
 -- name: GetAccountForUpdate :one 
 SELECT
     *

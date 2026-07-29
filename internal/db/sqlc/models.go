@@ -86,11 +86,13 @@ type Transfer struct {
 }
 
 type User struct {
-	ID           pgtype.UUID        `json:"id"`
-	Email        string             `json:"email"`
-	PasswordHash string             `json:"password_hash"`
-	FullName     string             `json:"full_name"`
-	IsVerified   bool               `json:"is_verified"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	ID                pgtype.UUID        `json:"id"`
+	Email             string             `json:"email"`
+	PasswordHash      string             `json:"password_hash"`
+	FullName          string             `json:"full_name"`
+	IsVerified        bool               `json:"is_verified"`
+	RefreshToken      pgtype.Text        `json:"refresh_token"`
+	VerificationToken pgtype.Text        `json:"verification_token"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }

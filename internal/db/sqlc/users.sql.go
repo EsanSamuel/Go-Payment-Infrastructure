@@ -15,7 +15,9 @@ const createUser = `-- name: CreateUser :one
 INSERT INTO
     users (email, password_hash, full_name)
 VALUES
-    ($1, $2, $3) RETURNING id, email, password_hash, full_name, is_verified, created_at, updated_at
+    ($1, $2, $3)
+RETURNING
+    id, email, password_hash, full_name, is_verified, refresh_token, verification_token, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -33,6 +35,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.PasswordHash,
 		&i.FullName,
 		&i.IsVerified,
+		&i.RefreshToken,
+		&i.VerificationToken,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -40,8 +44,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const deleteUser = `-- name: DeleteUser :exec
-DELETE FROM
-    users
+DELETE FROM users
 WHERE
     id = $1
 `
@@ -51,9 +54,28 @@ func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const emailExists = `-- name: EmailExists :one
+SELECT
+    EXISTS (
+        SELECT
+            1
+        FROM
+            users
+        WHERE
+            email = $1
+    )
+`
+
+func (q *Queries) EmailExists(ctx context.Context, email string) (bool, error) {
+	row := q.db.QueryRow(ctx, emailExists, email)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const getUser = `-- name: GetUser :one
 SELECT
-    id, email, password_hash, full_name, is_verified, created_at, updated_at
+    id, email, password_hash, full_name, is_verified, refresh_token, verification_token, created_at, updated_at
 FROM
     users
 WHERE
@@ -70,6 +92,98 @@ func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (User, error) {
 		&i.PasswordHash,
 		&i.FullName,
 		&i.IsVerified,
+		&i.RefreshToken,
+		&i.VerificationToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT
+    id, email, password_hash, full_name, is_verified, refresh_token, verification_token, created_at, updated_at
+FROM
+    users
+WHERE
+    email = $1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FullName,
+		&i.IsVerified,
+		&i.RefreshToken,
+		&i.VerificationToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertRefreshToken = `-- name: InsertRefreshToken :one
+UPDATE users
+SET
+    refresh_token = $1
+WHERE
+    id = $2
+RETURNING
+    id, email, password_hash, full_name, is_verified, refresh_token, verification_token, created_at, updated_at
+`
+
+type InsertRefreshTokenParams struct {
+	RefreshToken pgtype.Text `json:"refresh_token"`
+	ID           pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) (User, error) {
+	row := q.db.QueryRow(ctx, insertRefreshToken, arg.RefreshToken, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FullName,
+		&i.IsVerified,
+		&i.RefreshToken,
+		&i.VerificationToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertVerificationToken = `-- name: InsertVerificationToken :one
+UPDATE users
+SET
+    verification_token = $1
+WHERE
+    id = $2
+RETURNING
+    id, email, password_hash, full_name, is_verified, refresh_token, verification_token, created_at, updated_at
+`
+
+type InsertVerificationTokenParams struct {
+	VerificationToken pgtype.Text `json:"verification_token"`
+	ID                pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) InsertVerificationToken(ctx context.Context, arg InsertVerificationTokenParams) (User, error) {
+	row := q.db.QueryRow(ctx, insertVerificationToken, arg.VerificationToken, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FullName,
+		&i.IsVerified,
+		&i.RefreshToken,
+		&i.VerificationToken,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -78,7 +192,7 @@ func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (User, error) {
 
 const listUsers = `-- name: ListUsers :many
 SELECT
-    id, email, password_hash, full_name, is_verified, created_at, updated_at
+    id, email, password_hash, full_name, is_verified, refresh_token, verification_token, created_at, updated_at
 FROM
     users
 ORDER BY
@@ -100,6 +214,8 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.PasswordHash,
 			&i.FullName,
 			&i.IsVerified,
+			&i.RefreshToken,
+			&i.VerificationToken,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -114,8 +230,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 }
 
 const verifyUser = `-- name: VerifyUser :exec
-UPDATE
-    users
+UPDATE users
 SET
     is_verified = TRUE
 WHERE

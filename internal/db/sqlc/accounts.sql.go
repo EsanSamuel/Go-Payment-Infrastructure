@@ -12,8 +12,7 @@ import (
 )
 
 const activateAccount = `-- name: ActivateAccount :exec
-UPDATE
-    accounts
+UPDATE accounts
 SET
     status = 'ACTIVE'
 WHERE
@@ -26,8 +25,7 @@ func (q *Queries) ActivateAccount(ctx context.Context, id pgtype.UUID) error {
 }
 
 const addBalance = `-- name: AddBalance :exec
-UPDATE
-    accounts
+UPDATE accounts
 SET
     balance = balance + $1
 WHERE
@@ -44,12 +42,32 @@ func (q *Queries) AddBalance(ctx context.Context, arg AddBalanceParams) error {
 	return err
 }
 
-const createUserAccount = `-- name: CreateUserAccount :one
+const checkIfAccountNumberExists = `-- name: CheckIfAccountNumberExists :one
+SELECT
+    EXISTS (
+        SELECT
+            1
+        FROM
+            accounts
+        WHERE
+            account_number = $1
+    )
+`
 
+func (q *Queries) CheckIfAccountNumberExists(ctx context.Context, accountNumber string) (bool, error) {
+	row := q.db.QueryRow(ctx, checkIfAccountNumberExists, accountNumber)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const createUserAccount = `-- name: CreateUserAccount :one
 INSERT INTO
     accounts (account_number, user_id, currency)
 VALUES
-    ($1, $2, $3) RETURNING id, user_id, account_number, currency, balance, status, created_at, updated_at
+    ($1, $2, $3)
+RETURNING
+    id, user_id, account_number, currency, balance, status, created_at, updated_at
 `
 
 type CreateUserAccountParams struct {
@@ -131,7 +149,8 @@ SELECT
 FROM
     accounts
 WHERE
-    id = $1 FOR UPDATE
+    id = $1 FOR
+UPDATE
 `
 
 func (q *Queries) GetAccountForUpdate(ctx context.Context, id pgtype.UUID) (Account, error) {
@@ -152,7 +171,7 @@ func (q *Queries) GetAccountForUpdate(ctx context.Context, id pgtype.UUID) (Acco
 
 const getUserAccount = `-- name: GetUserAccount :one
 SELECT
-    accounts.id, user_id, account_number, currency, balance, status, accounts.created_at, accounts.updated_at, users.id, email, password_hash, full_name, is_verified, users.created_at, users.updated_at
+    accounts.id, user_id, account_number, currency, balance, status, accounts.created_at, accounts.updated_at, users.id, email, password_hash, full_name, is_verified, refresh_token, verification_token, users.created_at, users.updated_at
 FROM
     accounts
     JOIN users ON accounts.user_id = users.id
@@ -161,21 +180,23 @@ WHERE
 `
 
 type GetUserAccountRow struct {
-	ID            pgtype.UUID        `json:"id"`
-	UserID        pgtype.UUID        `json:"user_id"`
-	AccountNumber string             `json:"account_number"`
-	Currency      string             `json:"currency"`
-	Balance       int64              `json:"balance"`
-	Status        AccountStatus      `json:"status"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	ID_2          pgtype.UUID        `json:"id_2"`
-	Email         string             `json:"email"`
-	PasswordHash  string             `json:"password_hash"`
-	FullName      string             `json:"full_name"`
-	IsVerified    bool               `json:"is_verified"`
-	CreatedAt_2   pgtype.Timestamptz `json:"created_at_2"`
-	UpdatedAt_2   pgtype.Timestamptz `json:"updated_at_2"`
+	ID                pgtype.UUID        `json:"id"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	AccountNumber     string             `json:"account_number"`
+	Currency          string             `json:"currency"`
+	Balance           int64              `json:"balance"`
+	Status            AccountStatus      `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	ID_2              pgtype.UUID        `json:"id_2"`
+	Email             string             `json:"email"`
+	PasswordHash      string             `json:"password_hash"`
+	FullName          string             `json:"full_name"`
+	IsVerified        bool               `json:"is_verified"`
+	RefreshToken      pgtype.Text        `json:"refresh_token"`
+	VerificationToken pgtype.Text        `json:"verification_token"`
+	CreatedAt_2       pgtype.Timestamptz `json:"created_at_2"`
+	UpdatedAt_2       pgtype.Timestamptz `json:"updated_at_2"`
 }
 
 func (q *Queries) GetUserAccount(ctx context.Context, userID pgtype.UUID) (GetUserAccountRow, error) {
@@ -195,6 +216,8 @@ func (q *Queries) GetUserAccount(ctx context.Context, userID pgtype.UUID) (GetUs
 		&i.PasswordHash,
 		&i.FullName,
 		&i.IsVerified,
+		&i.RefreshToken,
+		&i.VerificationToken,
 		&i.CreatedAt_2,
 		&i.UpdatedAt_2,
 	)
@@ -202,8 +225,7 @@ func (q *Queries) GetUserAccount(ctx context.Context, userID pgtype.UUID) (GetUs
 }
 
 const subtractBalance = `-- name: SubtractBalance :exec
-UPDATE
-    accounts
+UPDATE accounts
 SET
     balance = balance - $1
 WHERE

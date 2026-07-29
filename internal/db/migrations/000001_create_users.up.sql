@@ -6,6 +6,8 @@ CREATE TABLE
     password_hash TEXT NOT NULL,
     full_name TEXT NOT NULL,
     is_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now ()
+    refresh_token TEXT,
+    verification_token TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );

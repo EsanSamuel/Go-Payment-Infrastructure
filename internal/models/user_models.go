@@ -1,19 +1,26 @@
 package models
 
 import (
-	"time"
-
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Users struct {
-	ID           string    `json:"id"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"password_hash"`
-	FullName     string    `json:"full_name"`
-	IsVerified   bool      `json:"is_verified"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                pgtype.UUID        `json:"id"`
+	Email             string             `json:"email"`
+	PasswordHash      string             `json:"-"`
+	FullName          string             `json:"full_name"`
+	IsVerified        bool               `json:"is_verified"`
+	VerificationToken pgtype.Text        `json:"verification_token"`
+	RefreshToken      pgtype.Text        `json:"refresh_token"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AuthResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	User         *Users `json:"user"`
 }
 
 type JWTClaims struct {

@@ -7,6 +7,7 @@ import (
 	"example.com/internal/config"
 	"example.com/internal/controller"
 	"example.com/internal/db"
+	"example.com/internal/pkg/jwt"
 	"example.com/internal/repository"
 	"example.com/internal/router"
 	"example.com/internal/service"
@@ -27,13 +28,13 @@ func main() {
 		fmt.Println("Error creating connection pool:", err)
 	}
 
-	//jwtConfig := cfg.JWT
+	jwtConfig := cfg.JWT
 
-	//jwt := jwt.NewManager(jwtConfig.Secret, jwtConfig.AccessExpiry, jwtConfig.RefreshExpiry)
+	jwt := jwt.NewManager(jwtConfig.Secret, jwtConfig.AccessExpiry, jwtConfig.RefreshExpiry)
 
 	userRepo := repository.NewUserRepository(conn)
-	userService := service.NewUserService(userRepo)
-	userController := controller.NewUserController(userService)
+	authService := service.NewAuthService(userRepo)
+	userController := controller.NewUserController(authService)
 
 	fmt.Println(conn)
 

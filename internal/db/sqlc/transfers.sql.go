@@ -12,7 +12,6 @@ import (
 )
 
 const createTransfer = `-- name: CreateTransfer :one
-
 INSERT INTO
     transfers (
         from_account_id,
@@ -22,7 +21,9 @@ INSERT INTO
         status
     )
 VALUES
-    ($1, $2, $3, $4, $5) RETURNING id, from_account_id, to_account_id, amount, status, reference, description, created_at
+    ($1, $2, $3, $4, $5)
+RETURNING
+    id, from_account_id, to_account_id, amount, status, reference, description, created_at
 `
 
 type CreateTransferParams struct {
@@ -66,7 +67,9 @@ WHERE
 ORDER BY
     created_at DESC
 LIMIT
-    $2 OFFSET $3
+    $2
+OFFSET
+    $3
 `
 
 type GetIncomingTransfersParams struct {
@@ -114,7 +117,9 @@ WHERE
 ORDER BY
     created_at DESC
 LIMIT
-    $2 OFFSET $3
+    $2
+OFFSET
+    $3
 `
 
 type GetOutgoingTransfersParams struct {
@@ -178,8 +183,7 @@ func (q *Queries) GetTransferById(ctx context.Context, id pgtype.UUID) (Transfer
 }
 
 const updateTransferStatus = `-- name: UpdateTransferStatus :exec
-UPDATE
-    transfers
+UPDATE transfers
 SET
     status = $1
 WHERE
