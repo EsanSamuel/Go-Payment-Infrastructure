@@ -25,21 +25,31 @@ func main() {
 
 	conn, err := db.InitDatabase(&cfg.Database)
 	if err != nil {
-		fmt.Println("Error creating connection pool:", err)
+		log.Fatal("Error creating connection pool:", err)
 	}
 
 	jwtConfig := cfg.JWT
 
 	jwt := jwt.NewManager(jwtConfig.Secret, jwtConfig.AccessExpiry, jwtConfig.RefreshExpiry)
 
+	// Repository
 	userRepo := repository.NewUserRepository(conn)
 	accountRepo := repository.NewAccountRepository(conn)
+
+	// Services
 	authService := service.NewAuthService(userRepo, *jwt, conn, accountRepo)
+	accountService := service.NewAccountService(userRepo, conn, accountRepo)
+
+	// Handlers
+	authController := controller.NewAuthController(authService)
+	accountController := controller.NewAccountController(accountService)
 	userController := controller.NewUserController(authService)
 
 	fmt.Println(conn)
 
 	r := gin.Default()
+	router.RegisterAuthRoutes(r, authController)
+	router.RegisterAccountRoutes(r, accountController, jwt)
 	router.RegisterUserRoutes(r, userController)
 	if err := r.Run(serverAddr); err != nil {
 		log.Fatal("Error starting Server", err)

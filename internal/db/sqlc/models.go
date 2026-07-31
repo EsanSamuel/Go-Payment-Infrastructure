@@ -74,6 +74,18 @@ type Entry struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
+type IdempotencyKey struct {
+	IdempotencyKey string             `json:"idempotency_key"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	RequestHash    string             `json:"request_hash"`
+	StatusCode     pgtype.Int4        `json:"status_code"`
+	ResponseBody   []byte             `json:"response_body"`
+	LockedAt       pgtype.Timestamptz `json:"locked_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
 type Transfer struct {
 	ID            pgtype.UUID        `json:"id"`
 	FromAccountID pgtype.UUID        `json:"from_account_id"`

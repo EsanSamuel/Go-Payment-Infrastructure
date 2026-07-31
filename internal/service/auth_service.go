@@ -27,7 +27,7 @@ type authService struct {
 	jwt         jwt.Manager
 }
 
-func NewAuthService(userRepo repository.UserRepository, jwt jwt.Manager, pool *pgxpool.Pool, accountRepo repository.AccountRepository) *authService {
+func NewAuthService(userRepo repository.UserRepository, jwt jwt.Manager, pool *pgxpool.Pool, accountRepo repository.AccountRepository) AuthService {
 	return &authService{
 		userRepo:    userRepo,
 		accountRepo: accountRepo,

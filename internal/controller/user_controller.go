@@ -11,10 +11,10 @@ import (
 )
 
 type userController struct {
-	userService service.UserService
+	userService service.AuthService
 }
 
-func NewUserController(userService service.UserService) *userController {
+func NewUserController(userService service.AuthService) *userController {
 	return &userController{
 		userService: userService,
 	}
@@ -29,7 +29,7 @@ func (h *userController) CreateUser(c *gin.Context) error {
 		return err
 	}
 
-	createdUser, err := h.userService.Create(ctx, user.Email)
+	createdUser, err := h.userService.RegisterUser(ctx, user.Email, user.FullName, user.PasswordHash)
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error creating user", "Details": err.Error()})

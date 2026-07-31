@@ -14,6 +14,10 @@ type Querier interface {
 	ActivateAccount(ctx context.Context, id pgtype.UUID) error
 	AddBalance(ctx context.Context, arg AddBalanceParams) error
 	CheckIfAccountNumberExists(ctx context.Context, accountNumber string) (bool, error)
+	CheckIfIdempotencyKeyExists(ctx context.Context, idempotencyKey string) (bool, error)
+	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) (IdempotencyKey, error)
+	// db/queries/idempotency.sql
+	CreateIdempotencyKey(ctx context.Context, arg CreateIdempotencyKeyParams) (IdempotencyKey, error)
 	// db/queries/transfers.sql
 	CreateTransfer(ctx context.Context, arg CreateTransferParams) (Transfer, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
@@ -24,6 +28,7 @@ type Querier interface {
 	GetAccount(ctx context.Context, id pgtype.UUID) (Account, error)
 	GetAccountByAccountNumber(ctx context.Context, accountNumber string) (GetAccountByAccountNumberRow, error)
 	GetAccountForUpdate(ctx context.Context, id pgtype.UUID) (Account, error)
+	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
 	GetIncomingTransfers(ctx context.Context, arg GetIncomingTransfersParams) ([]Transfer, error)
 	GetOutgoingTransfers(ctx context.Context, arg GetOutgoingTransfersParams) ([]Transfer, error)
 	GetTransferById(ctx context.Context, id pgtype.UUID) (Transfer, error)
