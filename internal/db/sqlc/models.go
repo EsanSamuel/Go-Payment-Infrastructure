@@ -54,6 +54,48 @@ func (ns NullAccountStatus) Value() (driver.Value, error) {
 	return string(ns.AccountStatus), nil
 }
 
+type EntryTypeEnum string
+
+const (
+	EntryTypeEnumCREDIT EntryTypeEnum = "CREDIT"
+	EntryTypeEnumDEBIT  EntryTypeEnum = "DEBIT"
+)
+
+func (e *EntryTypeEnum) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EntryTypeEnum(s)
+	case string:
+		*e = EntryTypeEnum(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EntryTypeEnum: %T", src)
+	}
+	return nil
+}
+
+type NullEntryTypeEnum struct {
+	EntryTypeEnum EntryTypeEnum `json:"entry_type_enum"`
+	Valid         bool          `json:"valid"` // Valid is true if EntryTypeEnum is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEntryTypeEnum) Scan(value interface{}) error {
+	if value == nil {
+		ns.EntryTypeEnum, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EntryTypeEnum.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEntryTypeEnum) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EntryTypeEnum), nil
+}
+
 type Account struct {
 	ID            pgtype.UUID        `json:"id"`
 	UserID        pgtype.UUID        `json:"user_id"`
@@ -70,7 +112,7 @@ type Entry struct {
 	AccountID  pgtype.UUID        `json:"account_id"`
 	TransferID pgtype.UUID        `json:"transfer_id"`
 	Amount     int64              `json:"amount"`
-	EntryType  string             `json:"entry_type"`
+	EntryType  EntryTypeEnum      `json:"entry_type"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 

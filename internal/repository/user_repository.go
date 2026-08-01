@@ -64,8 +64,9 @@ func (u *userRepository) Create(ctx context.Context, email string, full_name str
 	}
 
 	return &models.Users{
-		ID:    user.ID,
-		Email: user.Email,
+		ID:       user.ID,
+		Email:    user.Email,
+		FullName: user.FullName,
 	}, nil
 }
 
@@ -107,6 +108,7 @@ func (u *userRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 
 	return &models.Users{
 		Email:        user.Email,
+		ID:           user.ID,
 		PasswordHash: user.PasswordHash,
 		FullName:     user.FullName,
 	}, nil

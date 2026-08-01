@@ -23,12 +23,14 @@ type accountService struct {
 	pool        *pgxpool.Pool
 	userRepo    repository.UserRepository
 	accountRepo repository.AccountRepository
+	ledgerRepo  repository.LedgerRepository
 }
 
-func NewAccountService(userRepo repository.UserRepository, pool *pgxpool.Pool, accountRepo repository.AccountRepository) AccountService {
+func NewAccountService(userRepo repository.UserRepository, pool *pgxpool.Pool, accountRepo repository.AccountRepository, ledgerRepo repository.LedgerRepository) AccountService {
 	return &accountService{
 		userRepo:    userRepo,
 		accountRepo: accountRepo,
+		ledgerRepo:  ledgerRepo,
 		pool:        pool,
 	}
 }
@@ -41,6 +43,7 @@ func (s *accountService) Transfer(ctx context.Context, req models.TransferReques
 	defer tx.Rollback(ctx)
 
 	accountRepo := s.accountRepo.WithTx(tx)
+	ledgerRepo := s.ledgerRepo.WithTx(tx)
 
 	request_hash := hash.HashRequest(req.Path, req.Method, req.Body)
 

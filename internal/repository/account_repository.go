@@ -158,6 +158,7 @@ func (a *accountRepository) CreateTransfer(ctx context.Context, req models.Trans
 	}
 
 	return &models.Transfer{
+		ID:            transfer.ID,
 		FromAccountID: transfer.FromAccountID,
 		ToAccountID:   transfer.ToAccountID,
 		Amount:        transfer.Amount,

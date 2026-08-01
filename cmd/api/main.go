@@ -35,10 +35,11 @@ func main() {
 	// Repository
 	userRepo := repository.NewUserRepository(conn)
 	accountRepo := repository.NewAccountRepository(conn)
+	ledgerRepo := repository.NewLedgerRepository(conn)
 
 	// Services
 	authService := service.NewAuthService(userRepo, *jwt, conn, accountRepo)
-	accountService := service.NewAccountService(userRepo, conn, accountRepo)
+	accountService := service.NewAccountService(userRepo, conn, accountRepo, ledgerRepo)
 
 	// Handlers
 	authController := controller.NewAuthController(authService)
