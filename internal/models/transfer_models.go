@@ -7,15 +7,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CreateTransferRequest struct {
+	ToAccountNumber string
+	Amount          int64
+	Narration       pgtype.Text
+	IdempotencyKey  string
+}
+
 type TransferRequest struct {
-	FromAccountID  pgtype.UUID     `json:"from_account_id"`
-	ToAccountID    pgtype.UUID     `json:"to_account_id"`
-	Amount         int64           `json:"amount"`
-	Narration      pgtype.Text     `json:"narration"`
-	IdempotencyKey string          `json:"idempotency_key"`
-	Method         string          `json:"-"`
-	Path           string          `json:"-"`
-	Body           json.RawMessage `json:"-"`
+	FromAccountID   pgtype.UUID     `json:"from_account_id"`
+	ToAccountID     pgtype.UUID     `json:"to_account_id"`
+	ToAccountNumber string          `json:"to_account_number"`
+	Amount          int64           `json:"amount"`
+	Narration       pgtype.Text     `json:"narration"`
+	IdempotencyKey  string          `json:"idempotency_key"`
+	Method          string          `json:"-"`
+	Path            string          `json:"-"`
+	Body            json.RawMessage `json:"-"`
 }
 
 type Transfer struct {

@@ -68,11 +68,18 @@ func (s *accountService) Transfer(ctx context.Context, req models.TransferReques
 	}
 	_ = claimed
 
-	if bytes.Equal(req.FromAccountID.Bytes[:], req.ToAccountID.Bytes[:]) {
+	receiverAccount, err := accountRepo.GetAccountByAccountNumber(ctx, req.ToAccountNumber)
+	if err != nil {
+		return nil, fmt.Errorf("receiver account not found: %w", err)
+	}
+
+	toAccountID := receiverAccount.ID
+
+	if bytes.Equal(req.FromAccountID.Bytes[:], toAccountID.Bytes[:]) {
 		return nil, fmt.Errorf("cannot transfer to the same account")
 	}
 
-	firstID, secondID := req.FromAccountID, req.ToAccountID
+	firstID, secondID := req.FromAccountID, toAccountID
 	if bytes.Compare(firstID.Bytes[:], secondID.Bytes[:]) > 0 {
 		firstID, secondID = secondID, firstID
 	}
@@ -106,6 +113,9 @@ func (s *accountService) Transfer(ctx context.Context, req models.TransferReques
 		return nil, fmt.Errorf("Failed to ass balance to receiver's account %w", err)
 	}
 
+	// Resolve the public account number to the internal UUID
+	// before persisting the transfer.
+	req.ToAccountID = toAccountID
 	_, err = accountRepo.CreateTransfer(ctx, req)
 
 	if err != nil {

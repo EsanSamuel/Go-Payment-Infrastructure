@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -39,7 +40,7 @@ func (h *accountController) Transfer(c *gin.Context) error {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
 		return nil
 	}
-
+	log.Println("UserId:", userID, "exists:", ok)
 	var userUUID pgtype.UUID
 	if err := userUUID.Scan(userID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})

@@ -2,5 +2,4 @@
     "recommendations": [
         "bradymholt.pgformatter"
     ],
-    "sqlformat.dialect": "postgresql"
 }
