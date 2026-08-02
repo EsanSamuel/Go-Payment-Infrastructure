@@ -113,22 +113,49 @@ func (s *accountService) Transfer(ctx context.Context, req models.TransferReques
 	}
 	err = accountRepo.AddBalance(ctx, req.Amount, receiver.ID)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to ass balance to receiver's account %w", err)
+		return nil, fmt.Errorf("Failed to add balance to receiver's account %w", err)
 	}
 
 	// Resolve the public account number to the internal UUID
 	// before persisting the transfer.
 	req.ToAccountID = toAccountID
-	_, err = accountRepo.CreateTransfer(ctx, req)
+	transcation, err := accountRepo.CreateTransfer(ctx, req)
 
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create transfer %w", err)
 	}
 
+	// Sender Entry Ledger
+	SenderEntry := models.Entries{
+		AccountID:     sender.ID,
+		Amount:        req.Amount,
+		EntryType:     "DEBIT",
+		TransactionID: transcation.ID,
+	}
+	_, err = ledgerRepo.CreateEntry(ctx, SenderEntry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sender entry: %w", err)
+	}
+
+	// Receiver Entry Ledger
+	ReceiverEntry := models.Entries{
+		AccountID:     receiver.ID,
+		Amount:        req.Amount,
+		EntryType:     "CREDIT",
+		TransactionID: transcation.ID,
+	}
+	_, err = ledgerRepo.CreateEntry(ctx, ReceiverEntry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create receiver entry: %w", err)
+	}
+
 	transfer := &models.Transfer{
+		ID:            transcation.ID,
 		FromAccountID: sender.ID,
 		ToAccountID:   receiver.ID,
-		Amount:        req.Amount,
+		Amount:        transcation.Amount,
+		Description:   transcation.Description,
+		Reference:     transcation.Reference,
 	}
 
 	responseBody, err := json.Marshal(transfer)
