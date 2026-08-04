@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	ActivateAccount(ctx context.Context, id pgtype.UUID) error
 	AddBalance(ctx context.Context, arg AddBalanceParams) error
+	CheckBatchCompleted(ctx context.Context, batchID pgtype.UUID) (CheckBatchCompletedRow, error)
 	CheckIfAccountNumberExists(ctx context.Context, accountNumber string) (bool, error)
 	CheckIfIdempotencyKeyExists(ctx context.Context, idempotencyKey string) (bool, error)
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) (IdempotencyKey, error)
@@ -20,6 +21,9 @@ type Querier interface {
 	CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry, error)
 	// db/queries/idempotency.sql
 	CreateIdempotencyKey(ctx context.Context, arg CreateIdempotencyKeyParams) (IdempotencyKey, error)
+	CreatePayroll(ctx context.Context, arg CreatePayrollParams) (Payroll, error)
+	// db/queries/payroll.sql
+	CreatePayrollBatch(ctx context.Context, arg CreatePayrollBatchParams) (PayrollBatch, error)
 	// db/queries/transfers.sql
 	CreateTransfer(ctx context.Context, arg CreateTransferParams) (Transfer, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
@@ -27,15 +31,22 @@ type Querier interface {
 	CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (Account, error)
 	DeleteUser(ctx context.Context, id pgtype.UUID) error
 	EmailExists(ctx context.Context, email string) (bool, error)
+	FinalizeBatch(ctx context.Context, arg FinalizeBatchParams) (PayrollBatch, error)
 	GetAccount(ctx context.Context, id pgtype.UUID) (Account, error)
 	GetAccountByAccountNumber(ctx context.Context, accountNumber string) (GetAccountByAccountNumberRow, error)
 	GetAccountForUpdate(ctx context.Context, id pgtype.UUID) (Account, error)
 	GetAccountIdCreditEntry(ctx context.Context, accountID pgtype.UUID) (Entry, error)
 	GetAccountIdDEBITEntry(ctx context.Context, accountID pgtype.UUID) (Entry, error)
+	GetBatchById(ctx context.Context, id pgtype.UUID) (PayrollBatch, error)
+	GetBatchForUpdate(ctx context.Context, id pgtype.UUID) (PayrollBatch, error)
+	GetDuePayrollBatches(ctx context.Context) ([]PayrollBatch, error)
 	GetEntriesByAccountID(ctx context.Context, accountID pgtype.UUID) ([]Entry, error)
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
 	GetIncomingTransfers(ctx context.Context, arg GetIncomingTransfersParams) ([]Transfer, error)
 	GetOutgoingTransfers(ctx context.Context, arg GetOutgoingTransfersParams) ([]Transfer, error)
+	GetPayrollBatchById(ctx context.Context, arg GetPayrollBatchByIdParams) (PayrollBatch, error)
+	GetPayrollItemByID(ctx context.Context, id pgtype.UUID) (GetPayrollItemByIDRow, error)
+	GetPendingBatchPayrollItem(ctx context.Context, batchID pgtype.UUID) ([]Payroll, error)
 	GetTransferById(ctx context.Context, id pgtype.UUID) (Transfer, error)
 	// db/queries/users.sql
 	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
@@ -45,6 +56,9 @@ type Querier interface {
 	InsertVerificationToken(ctx context.Context, arg InsertVerificationTokenParams) (User, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	SubtractBalance(ctx context.Context, arg SubtractBalanceParams) error
+	UpdateBatchToProcessing(ctx context.Context, id pgtype.UUID) (PayrollBatch, error)
+	UpdatePayrollToCompleted(ctx context.Context, id pgtype.UUID) (Payroll, error)
+	UpdatePayrollToFailed(ctx context.Context, id pgtype.UUID) (Payroll, error)
 	UpdateTransferStatus(ctx context.Context, arg UpdateTransferStatusParams) error
 	VerifyUser(ctx context.Context, id pgtype.UUID) error
 }

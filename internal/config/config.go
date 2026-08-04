@@ -11,6 +11,7 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	JWT      JWTConfig
+	Redis    RedisConfig
 }
 
 type ServerConfig struct {
@@ -35,6 +36,13 @@ type JWTConfig struct {
 	RefreshExpiry time.Duration
 }
 
+type RedisConfig struct {
+	Host     string
+	Port     string
+	Password string
+	DB       int
+}
+
 func Load() (*Config, error) {
 	_ = godotenv.Load()
 
@@ -56,6 +64,11 @@ func Load() (*Config, error) {
 			Secret:        getEnv("JWT_SECRET", "secret"),
 			AccessExpiry:  parseDuration(getEnv("JWT_ACCESS_EXPIRY", "15m"), 15*time.Minute),
 			RefreshExpiry: parseDuration(getEnv("JWT_REFRESH_EXPIRY", "168h"), 7*24*time.Hour),
+		},
+		Redis: RedisConfig{
+			Host:     getEnv("REDIS_HOST", "localhost"),
+			Port:     getEnv("REDIS_PORT", "6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
 		},
 	}
 	return cfg, nil

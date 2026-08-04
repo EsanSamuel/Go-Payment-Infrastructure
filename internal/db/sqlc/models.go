@@ -96,6 +96,136 @@ func (ns NullEntryTypeEnum) Value() (driver.Value, error) {
 	return string(ns.EntryTypeEnum), nil
 }
 
+type PayrollBatchStatus string
+
+const (
+	PayrollBatchStatusPENDING    PayrollBatchStatus = "PENDING"
+	PayrollBatchStatusPROCESSING PayrollBatchStatus = "PROCESSING"
+	PayrollBatchStatusCOMPLETED  PayrollBatchStatus = "COMPLETED"
+	PayrollBatchStatusPARTIAL    PayrollBatchStatus = "PARTIAL"
+)
+
+func (e *PayrollBatchStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayrollBatchStatus(s)
+	case string:
+		*e = PayrollBatchStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayrollBatchStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPayrollBatchStatus struct {
+	PayrollBatchStatus PayrollBatchStatus `json:"payroll_batch_status"`
+	Valid              bool               `json:"valid"` // Valid is true if PayrollBatchStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayrollBatchStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayrollBatchStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayrollBatchStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayrollBatchStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayrollBatchStatus), nil
+}
+
+type PayrollItemStatus string
+
+const (
+	PayrollItemStatusPENDING   PayrollItemStatus = "PENDING"
+	PayrollItemStatusCOMPLETED PayrollItemStatus = "COMPLETED"
+	PayrollItemStatusFAILED    PayrollItemStatus = "FAILED"
+)
+
+func (e *PayrollItemStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayrollItemStatus(s)
+	case string:
+		*e = PayrollItemStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayrollItemStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPayrollItemStatus struct {
+	PayrollItemStatus PayrollItemStatus `json:"payroll_item_status"`
+	Valid             bool              `json:"valid"` // Valid is true if PayrollItemStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayrollItemStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayrollItemStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayrollItemStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayrollItemStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayrollItemStatus), nil
+}
+
+type PayrollPaymentInterval string
+
+const (
+	PayrollPaymentIntervalMONTHLY  PayrollPaymentInterval = "MONTHLY"
+	PayrollPaymentIntervalWEEKLY   PayrollPaymentInterval = "WEEKLY"
+	PayrollPaymentIntervalBIWEEKLY PayrollPaymentInterval = "BIWEEKLY"
+)
+
+func (e *PayrollPaymentInterval) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayrollPaymentInterval(s)
+	case string:
+		*e = PayrollPaymentInterval(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayrollPaymentInterval: %T", src)
+	}
+	return nil
+}
+
+type NullPayrollPaymentInterval struct {
+	PayrollPaymentInterval PayrollPaymentInterval `json:"payroll_payment_interval"`
+	Valid                  bool                   `json:"valid"` // Valid is true if PayrollPaymentInterval is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayrollPaymentInterval) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayrollPaymentInterval, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayrollPaymentInterval.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayrollPaymentInterval) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayrollPaymentInterval), nil
+}
+
 type Account struct {
 	ID            pgtype.UUID        `json:"id"`
 	UserID        pgtype.UUID        `json:"user_id"`
@@ -126,6 +256,25 @@ type IdempotencyKey struct {
 	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
+type Payroll struct {
+	ID                pgtype.UUID        `json:"id"`
+	BatchID           pgtype.UUID        `json:"batch_id"`
+	EmployeeAccountID pgtype.UUID        `json:"employee_account_id"`
+	Amount            int64              `json:"amount"`
+	Status            PayrollItemStatus  `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
+type PayrollBatch struct {
+	ID               pgtype.UUID            `json:"id"`
+	CompanyAccountID pgtype.UUID            `json:"company_account_id"`
+	ScheduleDate     pgtype.Timestamptz     `json:"schedule_date"`
+	Status           PayrollBatchStatus     `json:"status"`
+	PaymentInterval  PayrollPaymentInterval `json:"payment_interval"`
+	CreatedAt        pgtype.Timestamptz     `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz     `json:"updated_at"`
 }
 
 type Transfer struct {

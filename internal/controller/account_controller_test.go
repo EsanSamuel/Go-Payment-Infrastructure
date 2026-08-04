@@ -32,12 +32,14 @@ func TestTransferHandler(t *testing.T) {
 
 	controller := NewAccountController(service)
 	router := gin.New()
-	RegisterAccountRoutes(router, controller)
+	router.POST("/accounts/transfer", func(c *gin.Context) {
+		controller.Transfer(c)
+	})
 
 	payload := []byte(`{
 		"from_account_id": "00000000-0000-0000-0000-000000000001",
-		"to_account_id": "00000000-0000-0000-0000-000000000002",
-		"amount": 50,
+		"to_account_id": "00000000-0000-0000-0000-000000₀₀₀₀",
+		"amount": 5０,
 		"idempotency_key": "abc-123",
 		"method": "POST",
 		"path": "/accounts/transfer"

@@ -17,6 +17,7 @@ import (
 
 type AccountService interface {
 	Transfer(ctx context.Context, req models.TransferRequest, UserID pgtype.UUID) (*models.Transfer, error)
+	GetAccountById(ctx context.Context, id pgtype.UUID) (*models.Account, error)
 }
 
 type accountService struct {
@@ -171,4 +172,12 @@ func (s *accountService) Transfer(ctx context.Context, req models.TransferReques
 		return nil, err
 	}
 	return transfer, nil
+}
+
+func (s *accountService) GetAccountById(ctx context.Context, id pgtype.UUID) (*models.Account, error) {
+	account, err := s.accountRepo.GetAccountById(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get account by ID: %w", err)
+	}
+	return account, nil
 }
