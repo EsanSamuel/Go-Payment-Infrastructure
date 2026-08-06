@@ -9,6 +9,7 @@ type PayrollBatchRequest struct {
 	CompanyAccountID pgtype.UUID             `json:"company_account_id"`
 	ScheduleDate     pgtype.Timestamptz      `json:"schedule_date"`
 	Status           sqlc.PayrollBatchStatus `json:"status"`
+	BatchName        pgtype.Text             `json:"batch_name"`
 }
 
 type PayrollRequest struct {
@@ -16,6 +17,7 @@ type PayrollRequest struct {
 	EmployeeAccountID pgtype.UUID            `json:"employee_account_id"`
 	Amount            int64                  `json:"amount"`
 	Status            sqlc.PayrollItemStatus `json:"status"`
+	Description       pgtype.Text            `json:"description"`
 }
 
 type PayrollBatch struct {
@@ -24,6 +26,7 @@ type PayrollBatch struct {
 	ScheduleDate     pgtype.Timestamptz      `json:"schedule_date"`
 	Status           sqlc.PayrollBatchStatus `json:"status"`
 	CreatedAt        pgtype.Timestamptz      `json:"created_at"`
+	BatchName        pgtype.Text             `json:"batch_name"`
 }
 
 type Payroll struct {
@@ -33,6 +36,7 @@ type Payroll struct {
 	Amount            int64                  `json:"amount"`
 	Status            sqlc.PayrollItemStatus `json:"status"`
 	CreatedAt         pgtype.Timestamptz     `json:"created_at"`
+	Description       pgtype.Text            `json:"description"`
 	CompanyAccountID  pgtype.UUID            `json:"company_account_id"`
 	CompanyUserID     pgtype.UUID            `json:"company_user_id"`
 }

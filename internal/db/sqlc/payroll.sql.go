@@ -43,11 +43,17 @@ func (q *Queries) CheckBatchCompleted(ctx context.Context, batchID pgtype.UUID) 
 
 const createPayroll = `-- name: CreatePayroll :one
 INSERT INTO
-    payroll (batch_id, employee_account_id, amount, status)
+    payroll (
+        batch_id,
+        employee_account_id,
+        amount,
+        status,
+        description
+    )
 VALUES
-    ($1, $2, $3, $4)
+    ($1, $2, $3, $4, $5)
 RETURNING
-    id, batch_id, employee_account_id, amount, status, created_at
+    id, batch_id, employee_account_id, amount, status, created_at, description
 `
 
 type CreatePayrollParams struct {
@@ -55,6 +61,7 @@ type CreatePayrollParams struct {
 	EmployeeAccountID pgtype.UUID       `json:"employee_account_id"`
 	Amount            int64             `json:"amount"`
 	Status            PayrollItemStatus `json:"status"`
+	Description       pgtype.Text       `json:"description"`
 }
 
 func (q *Queries) CreatePayroll(ctx context.Context, arg CreatePayrollParams) (Payroll, error) {
@@ -63,6 +70,7 @@ func (q *Queries) CreatePayroll(ctx context.Context, arg CreatePayrollParams) (P
 		arg.EmployeeAccountID,
 		arg.Amount,
 		arg.Status,
+		arg.Description,
 	)
 	var i Payroll
 	err := row.Scan(
@@ -72,20 +80,27 @@ func (q *Queries) CreatePayroll(ctx context.Context, arg CreatePayrollParams) (P
 		&i.Amount,
 		&i.Status,
 		&i.CreatedAt,
+		&i.Description,
 	)
 	return i, err
 }
 
 const createPayrollBatch = `-- name: CreatePayrollBatch :one
 INSERT INTO
-    payroll_batches (company_account_id, schedule_date, status)
+    payroll_batches (
+        batch_name,
+        company_account_id,
+        schedule_date,
+        status
+    )
 VALUES
-    ($1, $2, $3)
+    ($1, $2, $3, $4)
 RETURNING
-    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at
+    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at, batch_name
 `
 
 type CreatePayrollBatchParams struct {
+	BatchName        pgtype.Text        `json:"batch_name"`
 	CompanyAccountID pgtype.UUID        `json:"company_account_id"`
 	ScheduleDate     pgtype.Timestamptz `json:"schedule_date"`
 	Status           PayrollBatchStatus `json:"status"`
@@ -93,7 +108,12 @@ type CreatePayrollBatchParams struct {
 
 // db/queries/payroll.sql
 func (q *Queries) CreatePayrollBatch(ctx context.Context, arg CreatePayrollBatchParams) (PayrollBatch, error) {
-	row := q.db.QueryRow(ctx, createPayrollBatch, arg.CompanyAccountID, arg.ScheduleDate, arg.Status)
+	row := q.db.QueryRow(ctx, createPayrollBatch,
+		arg.BatchName,
+		arg.CompanyAccountID,
+		arg.ScheduleDate,
+		arg.Status,
+	)
 	var i PayrollBatch
 	err := row.Scan(
 		&i.ID,
@@ -103,6 +123,7 @@ func (q *Queries) CreatePayrollBatch(ctx context.Context, arg CreatePayrollBatch
 		&i.PaymentInterval,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BatchName,
 	)
 	return i, err
 }
@@ -116,7 +137,7 @@ SET
 WHERE
     id = $1
 RETURNING
-    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at
+    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at, batch_name
 `
 
 type FinalizeBatchParams struct {
@@ -136,13 +157,14 @@ func (q *Queries) FinalizeBatch(ctx context.Context, arg FinalizeBatchParams) (P
 		&i.PaymentInterval,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BatchName,
 	)
 	return i, err
 }
 
 const getBatchById = `-- name: GetBatchById :one
 SELECT
-    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at
+    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at, batch_name
 FROM
     payroll_batches
 WHERE
@@ -160,13 +182,14 @@ func (q *Queries) GetBatchById(ctx context.Context, id pgtype.UUID) (PayrollBatc
 		&i.PaymentInterval,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BatchName,
 	)
 	return i, err
 }
 
 const getBatchForUpdate = `-- name: GetBatchForUpdate :one
 SELECT
-    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at
+    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at, batch_name
 FROM
     payroll_batches
 WHERE
@@ -185,13 +208,14 @@ func (q *Queries) GetBatchForUpdate(ctx context.Context, id pgtype.UUID) (Payrol
 		&i.PaymentInterval,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BatchName,
 	)
 	return i, err
 }
 
 const getDuePayrollBatches = `-- name: GetDuePayrollBatches :many
 SELECT
-    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at
+    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at, batch_name
 FROM
     payroll_batches
 WHERE
@@ -217,6 +241,7 @@ func (q *Queries) GetDuePayrollBatches(ctx context.Context) ([]PayrollBatch, err
 			&i.PaymentInterval,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.BatchName,
 		); err != nil {
 			return nil, err
 		}
@@ -230,7 +255,7 @@ func (q *Queries) GetDuePayrollBatches(ctx context.Context) ([]PayrollBatch, err
 
 const getPayrollBatchById = `-- name: GetPayrollBatchById :one
 SELECT
-    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at
+    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at, batch_name
 FROM
     payroll_batches
 WHERE
@@ -254,14 +279,15 @@ func (q *Queries) GetPayrollBatchById(ctx context.Context, arg GetPayrollBatchBy
 		&i.PaymentInterval,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BatchName,
 	)
 	return i, err
 }
 
 const getPayrollItemByID = `-- name: GetPayrollItemByID :one
 SELECT
-    payroll.id, payroll.batch_id, payroll.employee_account_id, payroll.amount, payroll.status, payroll.created_at,
-    payroll_batches.id, payroll_batches.company_account_id, payroll_batches.schedule_date, payroll_batches.status, payroll_batches.payment_interval, payroll_batches.created_at, payroll_batches.updated_at,
+    payroll.id, payroll.batch_id, payroll.employee_account_id, payroll.amount, payroll.status, payroll.created_at, payroll.description,
+    payroll_batches.id, payroll_batches.company_account_id, payroll_batches.schedule_date, payroll_batches.status, payroll_batches.payment_interval, payroll_batches.created_at, payroll_batches.updated_at, payroll_batches.batch_name,
     accounts.id, accounts.user_id, accounts.account_number, accounts.currency, accounts.balance, accounts.status, accounts.created_at, accounts.updated_at
 FROM
     payroll
@@ -278,6 +304,7 @@ type GetPayrollItemByIDRow struct {
 	Amount            int64                  `json:"amount"`
 	Status            PayrollItemStatus      `json:"status"`
 	CreatedAt         pgtype.Timestamptz     `json:"created_at"`
+	Description       pgtype.Text            `json:"description"`
 	ID_2              pgtype.UUID            `json:"id_2"`
 	CompanyAccountID  pgtype.UUID            `json:"company_account_id"`
 	ScheduleDate      pgtype.Timestamptz     `json:"schedule_date"`
@@ -285,6 +312,7 @@ type GetPayrollItemByIDRow struct {
 	PaymentInterval   PayrollPaymentInterval `json:"payment_interval"`
 	CreatedAt_2       pgtype.Timestamptz     `json:"created_at_2"`
 	UpdatedAt         pgtype.Timestamptz     `json:"updated_at"`
+	BatchName         pgtype.Text            `json:"batch_name"`
 	ID_3              pgtype.UUID            `json:"id_3"`
 	UserID            pgtype.UUID            `json:"user_id"`
 	AccountNumber     string                 `json:"account_number"`
@@ -305,6 +333,7 @@ func (q *Queries) GetPayrollItemByID(ctx context.Context, id pgtype.UUID) (GetPa
 		&i.Amount,
 		&i.Status,
 		&i.CreatedAt,
+		&i.Description,
 		&i.ID_2,
 		&i.CompanyAccountID,
 		&i.ScheduleDate,
@@ -312,6 +341,7 @@ func (q *Queries) GetPayrollItemByID(ctx context.Context, id pgtype.UUID) (GetPa
 		&i.PaymentInterval,
 		&i.CreatedAt_2,
 		&i.UpdatedAt,
+		&i.BatchName,
 		&i.ID_3,
 		&i.UserID,
 		&i.AccountNumber,
@@ -326,7 +356,7 @@ func (q *Queries) GetPayrollItemByID(ctx context.Context, id pgtype.UUID) (GetPa
 
 const getPendingBatchPayrollItem = `-- name: GetPendingBatchPayrollItem :many
 SELECT
-    id, batch_id, employee_account_id, amount, status, created_at
+    id, batch_id, employee_account_id, amount, status, created_at, description
 FROM
     payroll
 WHERE
@@ -350,6 +380,7 @@ func (q *Queries) GetPendingBatchPayrollItem(ctx context.Context, batchID pgtype
 			&i.Amount,
 			&i.Status,
 			&i.CreatedAt,
+			&i.Description,
 		); err != nil {
 			return nil, err
 		}
@@ -368,7 +399,7 @@ SET
 WHERE
     id = $1
 RETURNING
-    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at
+    id, company_account_id, schedule_date, status, payment_interval, created_at, updated_at, batch_name
 `
 
 func (q *Queries) UpdateBatchToProcessing(ctx context.Context, id pgtype.UUID) (PayrollBatch, error) {
@@ -382,6 +413,7 @@ func (q *Queries) UpdateBatchToProcessing(ctx context.Context, id pgtype.UUID) (
 		&i.PaymentInterval,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BatchName,
 	)
 	return i, err
 }
@@ -393,7 +425,7 @@ SET
 WHERE
     id = $1
 RETURNING
-    id, batch_id, employee_account_id, amount, status, created_at
+    id, batch_id, employee_account_id, amount, status, created_at, description
 `
 
 func (q *Queries) UpdatePayrollToCompleted(ctx context.Context, id pgtype.UUID) (Payroll, error) {
@@ -406,6 +438,7 @@ func (q *Queries) UpdatePayrollToCompleted(ctx context.Context, id pgtype.UUID) 
 		&i.Amount,
 		&i.Status,
 		&i.CreatedAt,
+		&i.Description,
 	)
 	return i, err
 }
@@ -417,7 +450,7 @@ SET
 WHERE
     id = $1
 RETURNING
-    id, batch_id, employee_account_id, amount, status, created_at
+    id, batch_id, employee_account_id, amount, status, created_at, description
 `
 
 func (q *Queries) UpdatePayrollToFailed(ctx context.Context, id pgtype.UUID) (Payroll, error) {
@@ -430,6 +463,7 @@ func (q *Queries) UpdatePayrollToFailed(ctx context.Context, id pgtype.UUID) (Pa
 		&i.Amount,
 		&i.Status,
 		&i.CreatedAt,
+		&i.Description,
 	)
 	return i, err
 }

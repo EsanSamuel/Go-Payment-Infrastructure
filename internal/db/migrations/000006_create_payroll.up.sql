@@ -24,6 +24,3 @@ CREATE TABLE
         status payroll_item_status NOT NULL DEFAULT 'PENDING',
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
-
-ALTER TABLE payroll_batches
-ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();

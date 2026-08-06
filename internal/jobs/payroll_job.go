@@ -19,6 +19,7 @@ type Scheduler struct {
 	accountRepo    repository.AccountRepository
 	payrollRepo    repository.PayrollRepository
 	accountService service.AccountService
+	ledgerRepo     repository.LedgerRepository
 	*sqlc.Queries
 	pool     *pgxpool.Pool
 	enqueuer *work.Enqueuer
@@ -35,7 +36,7 @@ var RedisPool = &redis.Pool{
 
 type Context struct{}
 
-func NewSchedule(accountRepo repository.AccountRepository, payrollRepo repository.PayrollRepository, pool *pgxpool.Pool, enqueuer *work.Enqueuer, accountService service.AccountService) *Scheduler {
+func NewSchedule(accountRepo repository.AccountRepository, payrollRepo repository.PayrollRepository, pool *pgxpool.Pool, enqueuer *work.Enqueuer, accountService service.AccountService, ledgerRepo repository.LedgerRepository) *Scheduler {
 	return &Scheduler{
 		accountRepo:    accountRepo,
 		payrollRepo:    payrollRepo,
@@ -43,40 +44,75 @@ func NewSchedule(accountRepo repository.AccountRepository, payrollRepo repositor
 		pool:           pool,
 		enqueuer:       enqueuer,
 		accountService: accountService,
+		ledgerRepo:     ledgerRepo,
 	}
 }
 
 func (s *Scheduler) RegisterPerodicJobs(pool *work.WorkerPool) {
-	pool.PeriodicallyEnqueue("*/5 * * * *", "check_due_payroll_batches") // Schedule the job to run every 5 minutes
+	fmt.Println("REGISTERING PERIODIC JOBS")
+
+	pool.PeriodicallyEnqueue("0 */5 * * * *", "check_due_payroll_batches") // Schedule the job to run every 5 minutes
 	pool.Job("check_due_payroll_batches", s.CheckDuePayrollBatches)
 	pool.Job("process_payroll_item", s.ProcessPayrollItem)
 }
 
 func (s *Scheduler) CheckDuePayrollBatches(job *work.Job) error {
+	fmt.Println("===== CRON FIRED =====", time.Now())
+
 	ctx := context.Background()
+
+	fmt.Println("Starting transaction")
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
+
 	defer tx.Rollback(ctx)
 
+	fmt.Println("Fetching due batches")
+
 	payrollRepo := s.payrollRepo.WithTx(tx)
+
 	dueBatches, err := payrollRepo.GetDuePayrollBatches(ctx)
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("Due batches found:", len(dueBatches))
+
 	for i, batch := range dueBatches {
-		fmt.Println("Processing batch id:", i)
+		fmt.Println("Processing batch:", i, batch.ID)
+
+		fmt.Println("Updating status")
 		err := payrollRepo.UpdateBatchStatusToProcessing(ctx, batch.ID)
 		if err != nil {
 			return err
 		}
 
+		fmt.Println("Getting items")
 		items, err := payrollRepo.GetPendingPayrollItemByBatchId(ctx, batch.ID)
-		fmt.Println("items:", items)
+
 		if err != nil {
-			return fmt.Errorf("failed to fetch items for batch %s: %w", batch.ID, err)
+			return err
+		}
+
+		fmt.Println("Items:", len(items))
+		if len(items) == 0 {
+			fmt.Println("No payroll items found, reverting batch")
+
+			err := payrollRepo.FinalizeBatchStatus(
+				ctx,
+				batch.ID,
+				"PENDING",
+				batch.ScheduleDate,
+			)
+
+			if err != nil {
+				return err
+			}
+
+			continue
 		}
 
 		for _, item := range items {
@@ -90,11 +126,14 @@ func (s *Scheduler) CheckDuePayrollBatches(job *work.Job) error {
 			}
 		}
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit: %w", err)
 
+	fmt.Println("Committing transaction")
+
+	if err := tx.Commit(ctx); err != nil {
+		return err
 	}
 
+	fmt.Println("Cron completed")
 	return nil
 }
 
@@ -125,20 +164,50 @@ func (s *Scheduler) ProcessPayrollItem(job *work.Job) error {
 		batch_timestamp,
 	)
 
+	description := fmt.Sprintf("Schedule payment to %s for %s", receiverAccount.AccountNumber, item.Description.String)
+
 	transferReq := models.TransferRequest{
 		FromAccountID:   item.CompanyAccountID,
 		ToAccountID:     item.EmployeeAccountID,
 		Amount:          item.Amount,
 		IdempotencyKey:  key,
 		ToAccountNumber: receiverAccount.AccountNumber,
+		Narration:       pgtype.Text{String: description, Valid: true},
 	}
 
-	_, transferErr := s.accountService.Transfer(ctx, transferReq, item.CompanyUserID)
+	transfer, transferErr := s.accountService.Transfer(ctx, transferReq, item.CompanyUserID)
 	if transferErr != nil {
 		fmt.Printf("Transfer failed for payroll item %s: %v\n", item.ID, transferErr)
 		s.payrollRepo.UpdatePayrollItemToFailed(ctx, item.ID)
-	} else {
-		s.payrollRepo.UpdatePayrollItemToCompleted(ctx, item.ID)
+		return nil
+	}
+
+	if err := s.payrollRepo.UpdatePayrollItemToCompleted(ctx, item.ID); err != nil {
+		return err
+	}
+
+	// Sender Entry Ledger
+	SenderEntry := models.Entries{
+		AccountID:     item.CompanyAccountID,
+		Amount:        item.Amount,
+		EntryType:     "DEBIT",
+		TransactionID: transfer.ID,
+	}
+	_, err = s.ledgerRepo.CreateEntry(ctx, SenderEntry)
+	if err != nil {
+		return fmt.Errorf("failed to create sender entry: %w", err)
+	}
+
+	// Receiver Entry Ledger
+	ReceiverEntry := models.Entries{
+		AccountID:     item.EmployeeAccountID,
+		Amount:        item.Amount,
+		EntryType:     "CREDIT",
+		TransactionID: transfer.ID,
+	}
+	_, err = s.ledgerRepo.CreateEntry(ctx, ReceiverEntry)
+	if err != nil {
+		return fmt.Errorf("failed to create receiver entry: %w", err)
 	}
 
 	if err := s.FinalizeBatchIfDone(ctx, item.BatchID); err != nil {
@@ -164,7 +233,9 @@ func (s *Scheduler) FinalizeBatchIfDone(ctx context.Context, batchID pgtype.UUID
 		return fmt.Errorf("failed to begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	fmt.Println("Finalizing batch id:", batchID)
+
+	fmt.Println("========== FinalizeBatchIfDone ==========")
+	fmt.Println("Batch ID:", batchID)
 
 	payrollRepo := s.payrollRepo.WithTx(tx)
 
@@ -174,8 +245,6 @@ func (s *Scheduler) FinalizeBatchIfDone(ctx context.Context, batchID pgtype.UUID
 	}
 
 	if batch.Status != "PROCESSING" {
-		// already finalized by another concurrent call — nothing to do
-		fmt.Println("Batch not in processing state, skipping finalization for batch id:", batchID)
 		return nil
 	}
 
@@ -185,20 +254,22 @@ func (s *Scheduler) FinalizeBatchIfDone(ctx context.Context, batchID pgtype.UUID
 	}
 
 	if !allDone {
-		fmt.Println("Batch not completed yet, skipping finalization for batch id:", batchID)
-		return nil // still waiting on other items
+		return nil
 	}
 
 	status := "COMPLETED"
 	if anyFailed {
 		status = "PARTIAL"
 	}
-	_ = status
+
+	fmt.Println("Final batch result:", status)
 
 	nextRun := nextMonthEndOrSameDay(batch.ScheduleDate.Time)
+	fmt.Println("Next run:", nextRun)
 
 	var nextRunPg pgtype.Timestamptz
 	if err := nextRunPg.Scan(nextRun); err != nil {
+		fmt.Println("Failed to scan nextRun:", err)
 		return fmt.Errorf("failed to convert next run time: %w", err)
 	}
 
@@ -207,5 +278,13 @@ func (s *Scheduler) FinalizeBatchIfDone(ctx context.Context, batchID pgtype.UUID
 		return fmt.Errorf("failed to finalize batch: %w", err)
 	}
 
-	return tx.Commit(ctx)
+	err = tx.Commit(ctx)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Batch finalized successfully!")
+	fmt.Println("=========================================")
+
+	return nil
 }

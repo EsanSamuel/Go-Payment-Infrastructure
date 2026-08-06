@@ -1,17 +1,28 @@
 -- db/queries/payroll.sql
 -- name: CreatePayrollBatch :one
 INSERT INTO
-    payroll_batches (company_account_id, schedule_date, status)
+    payroll_batches (
+        batch_name,
+        company_account_id,
+        schedule_date,
+        status
+    )
 VALUES
-    ($1, $2, $3)
+    ($1, $2, $3, $4)
 RETURNING
     *;
 
 -- name: CreatePayroll :one
 INSERT INTO
-    payroll (batch_id, employee_account_id, amount, status)
+    payroll (
+        batch_id,
+        employee_account_id,
+        amount,
+        status,
+        description
+    )
 VALUES
-    ($1, $2, $3, $4)
+    ($1, $2, $3, $4, $5)
 RETURNING
     *;
 

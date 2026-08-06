@@ -51,6 +51,7 @@ func (r *payrollRepository) CreatePayrollBatch(ctx context.Context, req models.P
 		CompanyAccountID: req.CompanyAccountID,
 		ScheduleDate:     req.ScheduleDate,
 		Status:           req.Status,
+		BatchName:        req.BatchName,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create payroll batch: %w", err)
@@ -62,6 +63,7 @@ func (r *payrollRepository) CreatePayrollBatch(ctx context.Context, req models.P
 		ScheduleDate:     batch.ScheduleDate,
 		Status:           batch.Status,
 		CreatedAt:        batch.CreatedAt,
+		BatchName:        batch.BatchName,
 	}, nil
 }
 
@@ -71,6 +73,7 @@ func (r *payrollRepository) CreatePayroll(ctx context.Context, req models.Payrol
 		EmployeeAccountID: req.EmployeeAccountID,
 		Amount:            req.Amount,
 		Status:            req.Status,
+		Description:       req.Description,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create payroll record: %w", err)
@@ -83,6 +86,7 @@ func (r *payrollRepository) CreatePayroll(ctx context.Context, req models.Payrol
 		Amount:            payroll.Amount,
 		Status:            payroll.Status,
 		CreatedAt:         payroll.CreatedAt,
+		Description:       payroll.Description,
 	}, nil
 }
 
@@ -195,6 +199,12 @@ func (r *payrollRepository) CheckBatchCompletion(ctx context.Context, batchID pg
 	allDone := resolved >= row.Total
 	anyFailed := row.Failed > 0
 
+	fmt.Printf(
+		"Resolved: %d, AllDone: %v, AnyFailed: %v\n",
+		resolved,
+		allDone,
+		anyFailed,
+	)
 	return allDone, anyFailed, nil
 }
 

@@ -265,6 +265,7 @@ type Payroll struct {
 	Amount            int64              `json:"amount"`
 	Status            PayrollItemStatus  `json:"status"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	Description       pgtype.Text        `json:"description"`
 }
 
 type PayrollBatch struct {
@@ -275,6 +276,7 @@ type PayrollBatch struct {
 	PaymentInterval  PayrollPaymentInterval `json:"payment_interval"`
 	CreatedAt        pgtype.Timestamptz     `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz     `json:"updated_at"`
+	BatchName        pgtype.Text            `json:"batch_name"`
 }
 
 type Transfer struct {

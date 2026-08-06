@@ -54,7 +54,7 @@ func main() {
 	fmt.Println("Database connection initialized:", conn)
 	var enqueuer = work.NewEnqueuer("payroll", jobs.RedisPool)
 
-	scheduler := jobs.NewSchedule(accountRepo, payrollRepo, conn, enqueuer, accountService)
+	scheduler := jobs.NewSchedule(accountRepo, payrollRepo, conn, enqueuer, accountService, ledgerRepo)
 	fmt.Println("Scheduler initialized:", scheduler)
 
 	workerPool := work.NewWorkerPool(jobs.Context{}, 10, "payroll", jobs.RedisPool)
