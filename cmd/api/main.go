@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
+	"time"
 
 	"example.com/internal/config"
 	"example.com/internal/controller"
@@ -30,6 +32,10 @@ func main() {
 		log.Fatal("Error creating connection pool:", err)
 	}
 
+	httpClient := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
 	jwtConfig := cfg.JWT
 
 	jwt := jwt.NewManager(jwtConfig.Secret, jwtConfig.AccessExpiry, jwtConfig.RefreshExpiry)
@@ -41,7 +47,7 @@ func main() {
 	payrollRepo := repository.NewPayrollRepository(conn)
 
 	// Services
-	authService := service.NewAuthService(userRepo, *jwt, conn, accountRepo)
+	authService := service.NewAuthService(userRepo, *jwt, conn, accountRepo, httpClient)
 	accountService := service.NewAccountService(userRepo, conn, accountRepo, ledgerRepo)
 	payrollService := service.NewPayrollService(payrollRepo)
 
@@ -52,6 +58,7 @@ func main() {
 	payrollController := controller.NewPayrollController(payrollService, accountService)
 
 	fmt.Println("Database connection initialized:", conn)
+
 	var enqueuer = work.NewEnqueuer("payroll", jobs.RedisPool)
 
 	scheduler := jobs.NewSchedule(accountRepo, payrollRepo, conn, enqueuer, accountService, ledgerRepo)

@@ -175,7 +175,7 @@ func (s *Scheduler) ProcessPayrollItem(job *work.Job) error {
 		Narration:       pgtype.Text{String: description, Valid: true},
 	}
 
-	transfer, transferErr := s.accountService.Transfer(ctx, transferReq, item.CompanyUserID)
+	_, transferErr := s.accountService.Transfer(ctx, transferReq, item.CompanyUserID)
 	if transferErr != nil {
 		fmt.Printf("Transfer failed for payroll item %s: %v\n", item.ID, transferErr)
 		s.payrollRepo.UpdatePayrollItemToFailed(ctx, item.ID)
@@ -184,30 +184,6 @@ func (s *Scheduler) ProcessPayrollItem(job *work.Job) error {
 
 	if err := s.payrollRepo.UpdatePayrollItemToCompleted(ctx, item.ID); err != nil {
 		return err
-	}
-
-	// Sender Entry Ledger
-	SenderEntry := models.Entries{
-		AccountID:     item.CompanyAccountID,
-		Amount:        item.Amount,
-		EntryType:     "DEBIT",
-		TransactionID: transfer.ID,
-	}
-	_, err = s.ledgerRepo.CreateEntry(ctx, SenderEntry)
-	if err != nil {
-		return fmt.Errorf("failed to create sender entry: %w", err)
-	}
-
-	// Receiver Entry Ledger
-	ReceiverEntry := models.Entries{
-		AccountID:     item.EmployeeAccountID,
-		Amount:        item.Amount,
-		EntryType:     "CREDIT",
-		TransactionID: transfer.ID,
-	}
-	_, err = s.ledgerRepo.CreateEntry(ctx, ReceiverEntry)
-	if err != nil {
-		return fmt.Errorf("failed to create receiver entry: %w", err)
 	}
 
 	if err := s.FinalizeBatchIfDone(ctx, item.BatchID); err != nil {

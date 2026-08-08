@@ -3,9 +3,12 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"net/http"
 
 	"example.com/internal/models"
+	"example.com/internal/paystack"
 	"example.com/internal/pkg/jwt"
 	"example.com/internal/pkg/token"
 	"example.com/internal/repository"
@@ -25,14 +28,16 @@ type authService struct {
 	userRepo    repository.UserRepository
 	accountRepo repository.AccountRepository
 	jwt         jwt.Manager
+	httpClient  *http.Client
 }
 
-func NewAuthService(userRepo repository.UserRepository, jwt jwt.Manager, pool *pgxpool.Pool, accountRepo repository.AccountRepository) AuthService {
+func NewAuthService(userRepo repository.UserRepository, jwt jwt.Manager, pool *pgxpool.Pool, accountRepo repository.AccountRepository, httpClient *http.Client) AuthService {
 	return &authService{
 		userRepo:    userRepo,
 		accountRepo: accountRepo,
 		jwt:         jwt,
 		pool:        pool,
+		httpClient:  httpClient,
 	}
 }
 
@@ -76,10 +81,25 @@ func (s *authService) RegisterUser(
 		return nil, err
 	}
 
-	accountNumber, err := token.GenerateAccountNumber()
-	if err != nil {
-		return nil, err
+	customerReq := paystack.CustomerRequest{
+		Firstname: user.FullName,
+		Lastname:  "",
+		Phone:     "+2348064515733",
+		Email:     user.Email,
 	}
+
+	customer, err := paystack.CreateCustomer(customerReq)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create customer %w:", err)
+	}
+
+	dedicatedAcct, err := paystack.CreateDedicatedAccount(customer.Data.CustomerCode)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create customer dedicated account %w:", err)
+	}
+
+	fmt.Printf("User dedicated Account %+v\n", dedicatedAcct)
+	accountNumber := dedicatedAcct.Data.AccountNumber
 
 	_, err = accountRepo.CreateAccount(ctx, accountNumber, "NGN", user.ID)
 	if err != nil {
