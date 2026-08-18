@@ -9,6 +9,7 @@ import (
 	"example.com/internal/models"
 	"example.com/internal/repository"
 	"example.com/internal/service"
+	logClient "github.com/EsanSamuel/sensory/LogClient"
 	"github.com/gocraft/work"
 	"github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -21,8 +22,10 @@ type Scheduler struct {
 	accountService service.AccountService
 	ledgerRepo     repository.LedgerRepository
 	*sqlc.Queries
-	pool     *pgxpool.Pool
-	enqueuer *work.Enqueuer
+	pool                *pgxpool.Pool
+	enqueuer            *work.Enqueuer
+	logger              *logClient.Client
+	notificationService service.NotificationService
 }
 
 var RedisPool = &redis.Pool{
@@ -36,15 +39,17 @@ var RedisPool = &redis.Pool{
 
 type Context struct{}
 
-func NewSchedule(accountRepo repository.AccountRepository, payrollRepo repository.PayrollRepository, pool *pgxpool.Pool, enqueuer *work.Enqueuer, accountService service.AccountService, ledgerRepo repository.LedgerRepository) *Scheduler {
+func NewSchedule(accountRepo repository.AccountRepository, payrollRepo repository.PayrollRepository, pool *pgxpool.Pool, enqueuer *work.Enqueuer, accountService service.AccountService, ledgerRepo repository.LedgerRepository, logger *logClient.Client, notificationService service.NotificationService) *Scheduler {
 	return &Scheduler{
-		accountRepo:    accountRepo,
-		payrollRepo:    payrollRepo,
-		Queries:        sqlc.New(pool),
-		pool:           pool,
-		enqueuer:       enqueuer,
-		accountService: accountService,
-		ledgerRepo:     ledgerRepo,
+		accountRepo:         accountRepo,
+		payrollRepo:         payrollRepo,
+		Queries:             sqlc.New(pool),
+		pool:                pool,
+		enqueuer:            enqueuer,
+		accountService:      accountService,
+		ledgerRepo:          ledgerRepo,
+		logger:              logger,
+		notificationService: notificationService,
 	}
 }
 
@@ -58,6 +63,7 @@ func (s *Scheduler) RegisterPerodicJobs(pool *work.WorkerPool) {
 
 func (s *Scheduler) CheckDuePayrollBatches(job *work.Job) error {
 	fmt.Println("===== CRON FIRED =====", time.Now())
+	s.logger.INFO(fmt.Sprintf("===== CRON FIRED at %v =====", time.Now()))
 
 	ctx := context.Background()
 
@@ -71,6 +77,7 @@ func (s *Scheduler) CheckDuePayrollBatches(job *work.Job) error {
 	defer tx.Rollback(ctx)
 
 	fmt.Println("Fetching due batches")
+	s.logger.INFO("Fetching due batches")
 
 	payrollRepo := s.payrollRepo.WithTx(tx)
 
@@ -80,9 +87,11 @@ func (s *Scheduler) CheckDuePayrollBatches(job *work.Job) error {
 	}
 
 	fmt.Println("Due batches found:", len(dueBatches))
+	s.logger.INFO(fmt.Sprint("Due batches found:", len(dueBatches)))
 
 	for i, batch := range dueBatches {
 		fmt.Println("Processing batch:", i, batch.ID)
+		s.logger.INFO(fmt.Sprint("Processing batch:", i, batch.ID))
 
 		fmt.Println("Updating status")
 		err := payrollRepo.UpdateBatchStatusToProcessing(ctx, batch.ID)
@@ -100,6 +109,7 @@ func (s *Scheduler) CheckDuePayrollBatches(job *work.Job) error {
 		fmt.Println("Items:", len(items))
 		if len(items) == 0 {
 			fmt.Println("No payroll items found, reverting batch")
+			s.logger.INFO("No payroll items found, reverting batch")
 
 			err := payrollRepo.FinalizeBatchStatus(
 				ctx,
@@ -122,7 +132,9 @@ func (s *Scheduler) CheckDuePayrollBatches(job *work.Job) error {
 				"batch_timestamp": batch.ScheduleDate.Time.Format(time.RFC3339),
 			})
 			if err != nil {
+				s.logger.ERROR(fmt.Sprintf("failed to enqueue item %s: %w", item.ID, err))
 				return fmt.Errorf("failed to enqueue item %s: %w", item.ID, err)
+
 			}
 		}
 	}
@@ -134,6 +146,7 @@ func (s *Scheduler) CheckDuePayrollBatches(job *work.Job) error {
 	}
 
 	fmt.Println("Cron completed")
+	s.logger.INFO("Cron completed")
 	return nil
 }
 
@@ -149,6 +162,7 @@ func (s *Scheduler) ProcessPayrollItem(job *work.Job) error {
 
 	item, err := s.payrollRepo.GetPayrollItemById(ctx, itemUUID)
 	if err != nil {
+		s.logger.ERROR(fmt.Sprintf("failed to fetch payroll item %s: %w", itemID, err))
 		return fmt.Errorf("failed to fetch payroll item %s: %w", itemID, err)
 	}
 
@@ -177,6 +191,7 @@ func (s *Scheduler) ProcessPayrollItem(job *work.Job) error {
 
 	_, transferErr := s.accountService.Transfer(ctx, transferReq, item.CompanyUserID)
 	if transferErr != nil {
+		s.logger.ERROR(fmt.Sprintf("Transfer failed for payroll item %s: %v\n", item.ID, transferErr))
 		fmt.Printf("Transfer failed for payroll item %s: %v\n", item.ID, transferErr)
 		s.payrollRepo.UpdatePayrollItemToFailed(ctx, item.ID)
 		return nil
@@ -212,6 +227,8 @@ func (s *Scheduler) FinalizeBatchIfDone(ctx context.Context, batchID pgtype.UUID
 
 	fmt.Println("========== FinalizeBatchIfDone ==========")
 	fmt.Println("Batch ID:", batchID)
+	s.logger.INFO("========== FinalizeBatchIfDone ==========")
+	s.logger.INFO(fmt.Sprintf("Batch ID:", batchID))
 
 	payrollRepo := s.payrollRepo.WithTx(tx)
 

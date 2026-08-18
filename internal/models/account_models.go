@@ -21,4 +21,5 @@ type Account struct {
 	Status        AccountStatus      `json:"status"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	Fullname      string             `json:"full_name"`
 }

@@ -258,6 +258,19 @@ type IdempotencyKey struct {
 	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
 }
 
+type Notification struct {
+	ID        pgtype.UUID        `json:"id"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	Type      string             `json:"type"`
+	Title     string             `json:"title"`
+	Message   string             `json:"message"`
+	Data      []byte             `json:"data"`
+	IsRead    bool               `json:"is_read"`
+	ReadAt    pgtype.Timestamptz `json:"read_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
 type Payroll struct {
 	ID                pgtype.UUID        `json:"id"`
 	BatchID           pgtype.UUID        `json:"batch_id"`

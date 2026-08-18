@@ -21,18 +21,20 @@ type AccountService interface {
 }
 
 type accountService struct {
-	pool        *pgxpool.Pool
-	userRepo    repository.UserRepository
-	accountRepo repository.AccountRepository
-	ledgerRepo  repository.LedgerRepository
+	pool                *pgxpool.Pool
+	userRepo            repository.UserRepository
+	accountRepo         repository.AccountRepository
+	ledgerRepo          repository.LedgerRepository
+	notificationService NotificationService
 }
 
-func NewAccountService(userRepo repository.UserRepository, pool *pgxpool.Pool, accountRepo repository.AccountRepository, ledgerRepo repository.LedgerRepository) AccountService {
+func NewAccountService(userRepo repository.UserRepository, pool *pgxpool.Pool, accountRepo repository.AccountRepository, ledgerRepo repository.LedgerRepository, notificationService NotificationService) AccountService {
 	return &accountService{
-		userRepo:    userRepo,
-		accountRepo: accountRepo,
-		ledgerRepo:  ledgerRepo,
-		pool:        pool,
+		userRepo:            userRepo,
+		accountRepo:         accountRepo,
+		ledgerRepo:          ledgerRepo,
+		pool:                pool,
+		notificationService: notificationService,
 	}
 }
 
@@ -158,6 +160,27 @@ func (s *accountService) Transfer(ctx context.Context, req models.TransferReques
 		Description:   transcation.Description,
 		Reference:     transcation.Reference,
 	}
+
+	senderAccount, err := accountRepo.GetAccountForUpdate(ctx, req.FromAccountID)
+	sender, err = accountRepo.GetAccountByAccountNumber(ctx, senderAccount.AccountNumber)
+
+	notificationReq := models.CreateNotificationRequest{
+		UserID:  receiver.UserID,
+		Type:    "transfer_received",
+		Title:   "Transfer Received",
+		Message: "You received a transfer from" + sender.Fullname,
+	}
+
+	s.notificationService.CreateNotification(ctx, notificationReq)
+
+	sender_notificationReq := models.CreateNotificationRequest{
+		UserID:  sender.UserID,
+		Type:    "transfer_sent",
+		Title:   "Transfer Sent",
+		Message: "You sent a transfer to" + receiverAccount.Fullname,
+	}
+
+	s.notificationService.CreateNotification(ctx, sender_notificationReq)
 
 	responseBody, err := json.Marshal(transfer)
 	if err != nil {

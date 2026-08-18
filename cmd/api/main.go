@@ -14,6 +14,7 @@ import (
 	"example.com/internal/repository"
 	"example.com/internal/router"
 	"example.com/internal/service"
+	"example.com/internal/ws"
 	"github.com/gin-gonic/gin"
 	"github.com/gocraft/work"
 )
@@ -39,16 +40,19 @@ func main() {
 	jwtConfig := cfg.JWT
 
 	jwt := jwt.NewManager(jwtConfig.Secret, jwtConfig.AccessExpiry, jwtConfig.RefreshExpiry)
+	h := ws.NewHub()
 
 	// Repository
 	userRepo := repository.NewUserRepository(conn)
 	accountRepo := repository.NewAccountRepository(conn)
 	ledgerRepo := repository.NewLedgerRepository(conn)
 	payrollRepo := repository.NewPayrollRepository(conn)
+	notificationRepo := repository.NewNotificationRepository(conn)
 
 	// Services
+	notificationService := service.NewNotificationService(notificationRepo, h)
 	authService := service.NewAuthService(userRepo, *jwt, conn, accountRepo, httpClient)
-	accountService := service.NewAccountService(userRepo, conn, accountRepo, ledgerRepo)
+	accountService := service.NewAccountService(userRepo, conn, accountRepo, ledgerRepo, notificationService)
 	payrollService := service.NewPayrollService(payrollRepo)
 
 	// Handlers
@@ -59,9 +63,12 @@ func main() {
 
 	fmt.Println("Database connection initialized:", conn)
 
+	logger := config.InitLogger()
+	fmt.Print(logger)
+
 	var enqueuer = work.NewEnqueuer("payroll", jobs.RedisPool)
 
-	scheduler := jobs.NewSchedule(accountRepo, payrollRepo, conn, enqueuer, accountService, ledgerRepo)
+	scheduler := jobs.NewSchedule(accountRepo, payrollRepo, conn, enqueuer, accountService, ledgerRepo, logger, notificationService)
 	fmt.Println("Scheduler initialized:", scheduler)
 
 	workerPool := work.NewWorkerPool(jobs.Context{}, 10, "payroll", jobs.RedisPool)
@@ -76,10 +83,11 @@ func main() {
 	router.RegisterAccountRoutes(r, accountController, jwt)
 	router.RegisterUserRoutes(r, userController)
 	router.RegisterPayrollRoutes(r, payrollController, jwt)
+	router.RegisterWSRoutes(r, h, jwt)
 	if err := r.Run(serverAddr); err != nil {
 		log.Fatal("Error starting Server", err)
 	}
 
 }
 
-//migrate -path db/migrations -database "$DATABASE_URL" up
+//migrate -path internal/db/migrations -database "$DATABASE_URL" up

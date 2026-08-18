@@ -90,6 +90,7 @@ func (a *accountRepository) GetAccountByAccountNumber(ctx context.Context, accou
 		UserID:        account.UserID,
 		AccountNumber: account.AccountNumber,
 		Currency:      account.Currency,
+		Fullname:      account.FullName,
 	}, nil
 }
 

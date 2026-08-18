@@ -21,6 +21,8 @@ type Querier interface {
 	CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry, error)
 	// db/queries/idempotency.sql
 	CreateIdempotencyKey(ctx context.Context, arg CreateIdempotencyKeyParams) (IdempotencyKey, error)
+	// db/queries/notification.sql
+	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreatePayroll(ctx context.Context, arg CreatePayrollParams) (Payroll, error)
 	// db/queries/payroll.sql
 	CreatePayrollBatch(ctx context.Context, arg CreatePayrollBatchParams) (PayrollBatch, error)
@@ -52,9 +54,11 @@ type Querier interface {
 	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
 	GetUserAccount(ctx context.Context, userID pgtype.UUID) (GetUserAccountRow, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
+	GetUserNotifications(ctx context.Context, userID pgtype.UUID) ([]Notification, error)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) (User, error)
 	InsertVerificationToken(ctx context.Context, arg InsertVerificationTokenParams) (User, error)
 	ListUsers(ctx context.Context) ([]User, error)
+	MarkNotificationAsRead(ctx context.Context, arg MarkNotificationAsReadParams) (Notification, error)
 	SubtractBalance(ctx context.Context, arg SubtractBalanceParams) error
 	UpdateBatchToProcessing(ctx context.Context, id pgtype.UUID) (PayrollBatch, error)
 	UpdatePayrollToCompleted(ctx context.Context, id pgtype.UUID) (Payroll, error)
