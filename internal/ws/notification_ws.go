@@ -100,6 +100,7 @@ func (h *Hub) removeClient(client *Client) {
 }
 
 func (h *Hub) SendNotification(userID string, notification models.NotificationResponse) {
+	log.Printf("SendNotification called for userID=%q", userID)
 	h.mu.RLock()
 
 	client, ok := h.clients[userID]

@@ -162,25 +162,38 @@ func (s *accountService) Transfer(ctx context.Context, req models.TransferReques
 	}
 
 	senderAccount, err := accountRepo.GetAccountForUpdate(ctx, req.FromAccountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lock sender account: %w", err)
+	}
+
 	sender, err = accountRepo.GetAccountByAccountNumber(ctx, senderAccount.AccountNumber)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sender account by account number: %w", err)
+	}
 
 	notificationReq := models.CreateNotificationRequest{
 		UserID:  receiver.UserID,
 		Type:    "transfer_received",
 		Title:   "Transfer Received",
-		Message: "You received a transfer from" + sender.Fullname,
+		Message: fmt.Sprintf("You received a transfer from %s", sender.Fullname),
 	}
 
-	s.notificationService.CreateNotification(ctx, notificationReq)
+	_, err = s.notificationService.CreateNotification(ctx, notificationReq)
+	if err != nil {
+		return nil, fmt.Errorf("Receiver Notification failed!: %w", err)
+	}
 
 	sender_notificationReq := models.CreateNotificationRequest{
 		UserID:  sender.UserID,
 		Type:    "transfer_sent",
 		Title:   "Transfer Sent",
-		Message: "You sent a transfer to" + receiverAccount.Fullname,
+		Message: fmt.Sprintf("You sent a transfer to %s", receiverAccount.Fullname),
 	}
 
-	s.notificationService.CreateNotification(ctx, sender_notificationReq)
+	_, err = s.notificationService.CreateNotification(ctx, sender_notificationReq)
+	if err != nil {
+		return nil, fmt.Errorf("Sender Notification failed!: %w", err)
+	}
 
 	responseBody, err := json.Marshal(transfer)
 	if err != nil {

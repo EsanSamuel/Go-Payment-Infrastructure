@@ -51,5 +51,6 @@ func (n *notificationRepository) CreateNotification(ctx context.Context, req mod
 		Message: notification.Message,
 		Title:   notification.Title,
 		Type:    notification.Type,
+		UserID:  notification.UserID,
 	}, nil
 }
