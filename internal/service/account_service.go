@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"example.com/internal/jobs"
 	"example.com/internal/models"
 	"example.com/internal/pkg/hash"
 	"example.com/internal/repository"
@@ -171,7 +172,7 @@ func (s *accountService) Transfer(ctx context.Context, req models.TransferReques
 		return nil, fmt.Errorf("failed to get sender account by account number: %w", err)
 	}
 
-	notificationReq := models.CreateNotificationRequest{
+	/*notificationReq := models.CreateNotificationRequest{
 		UserID:  receiver.UserID,
 		Type:    "transfer_received",
 		Title:   "Transfer Received",
@@ -193,7 +194,7 @@ func (s *accountService) Transfer(ctx context.Context, req models.TransferReques
 	_, err = s.notificationService.CreateNotification(ctx, sender_notificationReq)
 	if err != nil {
 		return nil, fmt.Errorf("Sender Notification failed!: %w", err)
-	}
+	}*/
 
 	responseBody, err := json.Marshal(transfer)
 	if err != nil {
@@ -207,6 +208,9 @@ func (s *accountService) Transfer(ctx context.Context, req models.TransferReques
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+
+	jobs.EnqueueNotification(receiver.UserID.String(), "transfer_received", "Transfer Received", fmt.Sprintf("You received a transfer from %s", sender.Fullname), transcation.ID.String())
+	jobs.EnqueueNotification(sender.UserID.String(), "transfer_sent", "Transfer Sent", fmt.Sprintf("You sent a transfer to %s", receiverAccount.Fullname), transcation.ID.String())
 	return transfer, nil
 }
 

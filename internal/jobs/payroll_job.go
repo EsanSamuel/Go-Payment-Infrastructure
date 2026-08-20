@@ -8,7 +8,6 @@ import (
 	"example.com/internal/db/sqlc"
 	"example.com/internal/models"
 	"example.com/internal/repository"
-	"example.com/internal/service"
 	logClient "github.com/EsanSamuel/sensory/LogClient"
 	"github.com/gocraft/work"
 	"github.com/gomodule/redigo/redis"
@@ -16,17 +15,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Scheduler struct {
-	accountRepo    repository.AccountRepository
-	payrollRepo    repository.PayrollRepository
-	accountService service.AccountService
-	ledgerRepo     repository.LedgerRepository
-	*sqlc.Queries
-	pool                *pgxpool.Pool
-	enqueuer            *work.Enqueuer
-	logger              *logClient.Client
-	notificationService service.NotificationService
+type TransferService interface {
+	Transfer(ctx context.Context, req models.TransferRequest, UserID pgtype.UUID) (*models.Transfer, error)
 }
+
+type Context struct{}
 
 var RedisPool = &redis.Pool{
 	MaxActive: 5,
@@ -37,19 +30,27 @@ var RedisPool = &redis.Pool{
 	},
 }
 
-type Context struct{}
+type Scheduler struct {
+	accountRepo    repository.AccountRepository
+	payrollRepo    repository.PayrollRepository
+	accountService TransferService
+	ledgerRepo     repository.LedgerRepository
+	*sqlc.Queries
+	pool     *pgxpool.Pool
+	enqueuer *work.Enqueuer
+	logger   *logClient.Client
+}
 
-func NewSchedule(accountRepo repository.AccountRepository, payrollRepo repository.PayrollRepository, pool *pgxpool.Pool, enqueuer *work.Enqueuer, accountService service.AccountService, ledgerRepo repository.LedgerRepository, logger *logClient.Client, notificationService service.NotificationService) *Scheduler {
+func NewSchedule(accountRepo repository.AccountRepository, payrollRepo repository.PayrollRepository, pool *pgxpool.Pool, enqueuer *work.Enqueuer, accountService TransferService, ledgerRepo repository.LedgerRepository, logger *logClient.Client) *Scheduler {
 	return &Scheduler{
-		accountRepo:         accountRepo,
-		payrollRepo:         payrollRepo,
-		Queries:             sqlc.New(pool),
-		pool:                pool,
-		enqueuer:            enqueuer,
-		accountService:      accountService,
-		ledgerRepo:          ledgerRepo,
-		logger:              logger,
-		notificationService: notificationService,
+		accountRepo:    accountRepo,
+		payrollRepo:    payrollRepo,
+		Queries:        sqlc.New(pool),
+		pool:           pool,
+		enqueuer:       enqueuer,
+		accountService: accountService,
+		ledgerRepo:     ledgerRepo,
+		logger:         logger,
 	}
 }
 

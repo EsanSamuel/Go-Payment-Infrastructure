@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"example.com/internal/config"
@@ -68,7 +71,7 @@ func main() {
 
 	var enqueuer = work.NewEnqueuer("payroll", jobs.RedisPool)
 
-	scheduler := jobs.NewSchedule(accountRepo, payrollRepo, conn, enqueuer, accountService, ledgerRepo, logger, notificationService)
+	scheduler := jobs.NewSchedule(accountRepo, payrollRepo, conn, enqueuer, accountService, ledgerRepo, logger)
 	fmt.Println("Scheduler initialized:", scheduler)
 
 	workerPool := work.NewWorkerPool(jobs.Context{}, 10, "payroll", jobs.RedisPool)
@@ -77,6 +80,8 @@ func main() {
 
 	workerPool.Start()
 	defer workerPool.Stop()
+
+	go jobs.NotificationWorker(notificationService)
 
 	r := gin.Default()
 	router.RegisterAuthRoutes(r, authController)
@@ -87,6 +92,12 @@ func main() {
 	if err := r.Run(serverAddr); err != nil {
 		log.Fatal("Error starting Server", err)
 	}
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+	<-signalChan
+
+	jobs.StopNotificationWorker()
 
 }
 
